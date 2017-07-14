@@ -2,18 +2,25 @@
 // http://docs.guzzlephp.org/en/latest/quickstart.html
 namespace Dprc\Spider;
 
+use Dprc\Spider\Exceptions\DebugDirectoryNotSet;
+use Dprc\Spider\Exceptions\IndexNotFoundInResponsesArray;
+use Dprc\Spider\Exceptions\UnableToCreateDebugDirectory;
+use Dprc\Spider\Exceptions\UnableToWriteLogFile;
+use Dprc\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
+use Dprc\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
+use Exception;
 
+use Dprc\Spider\Exceptions\DebugDirectoryAlreadySet;
 use Dprc\Spider\Step;
 
 /**
  * http://guzzle3.readthedocs.io/http-client/client.html
  */
-use /** @noinspection PhpUndefinedNamespaceInspection */
-    GuzzleHttp\Client;
-
-
-use /** @noinspection PhpUndefinedNamespaceInspection */
-    GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Psr7\Response;
+use League\Flysystem\File;
 
 
 /**
@@ -21,15 +28,24 @@ use /** @noinspection PhpUndefinedNamespaceInspection */
  * @package Dprc\Spider
  */
 class Spider {
+    /**
+     * @var Client|null
+     */
     protected $client = NULL;
 
+    /**
+     * @var \GuzzleHttp\Cookie\CookieJar|null
+     */
     public $cookie_jar = NULL;
-    //public $cookie_jars = array(); // Array indexes are the host name.
 
     /**
      * @var array
      */
     protected $responses = [];
+
+    /**
+     * @var array
+     */
     protected $steps = []; // An array of Step objects
 
     /**
@@ -37,10 +53,19 @@ class Spider {
      */
     protected $sink = NULL;
 
+    /**
+     * @var null
+     */
     protected $debug_directory = NULL;
 
-    protected $number_of_steps_executed = 0; // Increment after every run_step() call
+    /**
+     * @var int Increment after every run_step() call
+     */
+    protected $number_of_steps_executed = 0;
 
+    /**
+     * @var bool
+     */
     protected $debug = FALSE;
 
     /**
@@ -54,66 +79,21 @@ class Spider {
     protected $local_files_written = [];
 
     /**
-     *
+     * Spider constructor.
+     * @param bool $debug
      */
     public function __construct( $debug = FALSE ) {
         $this->debug  = $debug;
         $this->client = new Client( [ // Base URI is used with relative requests
-                                      //'base_uri' => 'fims.deerparkrd.com',
+                                      //'base_uri' => 'example.com',
                                       // You can set any number of default request options.
                                       //'timeout'  => 2.0,
                                       //'cookies' => true
                                     ] );
 
-        $this->cookie_jar = new \GuzzleHttp\Cookie\CookieJar();
+        $this->cookie_jar = new CookieJar();
     }
 
-    /**
-     * @param $argNewDirectory
-     * @return null|string
-     * @throws \Exception
-     */
-    public function setDebugDirectory( $argNewDirectory ) {
-        if ( \File::isDirectory( $this->debug_directory ) ):
-            throw new \Exception( "The debug directory is already set at: " . $this->debug_directory );
-        endif;
-
-        $pathToDebugDirectory = storage_path() . '/spider/' . $argNewDirectory . '/run_' . date( 'YmdHis' );
-        if ( !file_exists( $pathToDebugDirectory ) ):
-            try {
-                $result = \File::makeDirectory( $pathToDebugDirectory, 0775, TRUE );
-                chmod( $pathToDebugDirectory, 0777 );
-            } catch ( \Exception $e ) {
-                throw new \Exception( "Unable to create debug directory for the DPRC Spider [" . $pathToDebugDirectory . '] ' . $e->getCode() . ' ' . $e->getMessage() );
-            }
-        endif;
-        $this->debug_directory = $pathToDebugDirectory;
-
-        $this->debug_log = $this->debug_directory . '/debug.log';
-
-        $this->log( "Debug directory of the Spider was set to: " . $this->debug_directory );
-
-        return $this->debug_directory;
-    }
-
-    /**
-     * The dir that contains all of our debug logs gets full in a hurry.
-     * If debug is turned off, then delete these directories.
-     */
-    public function deleteDebugDirectory() {
-        $success = \File::deleteDirectory( $this->debug_directory );
-
-        return $success;
-    }
-
-
-    public function getDebugDirectory() {
-        if ( !\File::isDirectory( $this->debug_directory ) ):
-            throw new \Exception( "The debug directory needs to be set before you can use it." );
-        endif;
-
-        return $this->debug_directory;
-    }
 
     /**
      * @return static
@@ -150,11 +130,19 @@ class Spider {
     }
 
     /**
-     * Do you want to save the output of the request to a file? Set the absolute local destination filepath.
+     * Do you want to save the output of the request to a file?
+     * Set the absolute local destination file path.
      * @param $argAbsoluteFilePath
      */
     public function setSink( $argAbsoluteFilePath ) {
         $this->sink = $argAbsoluteFilePath;
+    }
+
+    /**
+     * @return string Absolute path to the sink.
+     */
+    public function getSink() {
+        return $this->sink;
     }
 
     /**
@@ -171,46 +159,43 @@ class Spider {
      */
     public function run() {
         $this->log( "Inside spider->run()" );
-        if ( !$this->debug_directory ):
-            throw new \Exception( "You need to set the debug_directory before you run the Spider." );
-        endif;
 
+        // Will throw exception if the debug directory is not set.
+        $this->getDebugDirectory();
+
+        // Run all of the steps. Catch, log, and rethrow any Exceptions thrown from the run_step() method.
         foreach ( $this->steps as $index => $step ):
             try {
                 $this->log( "Started step #" . $index );
                 $response = $this->run_step( $step );
                 $this->log( "[Finished step #" . $index . "] " . substr( $response->getBody(), 0, 50 ) );
-            } catch ( \Exception $e ) {
+            } catch ( Exception $e ) {
                 $this->log( "Exception (" . get_class( $e ) . ") in spider->run(): " . $e->getMessage() . " " . $e->getFile() . ':' . $e->getLine() );
                 throw $e;
             }
         endforeach;
 
-        $this->log( "Removing " . count( $this->steps ) . " steps that were completed from this spider." );
-        $this->steps = []; // Prep the Spider to have more Steps added. The alternative would be to maintain a pointer in the steps array to keep track of where we are.
+        $this->log( "Removing [" . count( $this->steps ) . "] steps that were completed from this spider." );
+
+        // Prep the Spider to have more Steps added.
+        // The alternative would be to maintain a pointer in the steps array to keep track of where we are.
+        $this->steps = [];
         $this->log( "Exiting spider->run() and returning " . count( $this->responses ) . " HTTP client responses." );
 
         return $this->responses;
     }
 
-    /**
-     *
-     */
-    public function getLogLocation() {
-        return $this->debug_log;
-    }
-
 
     /**
-     * @param $argStepName
+     * @param string $argStepName The index of the Response that we want.
      * @return mixed
-     * @throws \Exception
+     * @throws IndexNotFoundInResponsesArray
      */
     public function getResponse( $argStepName ) {
         if ( isset( $this->responses[ $argStepName ] ) ):
             return $this->responses[ $argStepName ];
         endif;
-        throw new \Exception( "There is no index in the responses array called: " . $argStepName );
+        throw new IndexNotFoundInResponsesArray( "There is no index in the responses array called: " . $argStepName );
     }
 
     public function getResponseBody( $argStepName ) {
@@ -220,9 +205,9 @@ class Spider {
     }
 
     /**
-     * @param Step $step
+     * @param \Dprc\Spider\Step $step
      * @param bool $debug
-     * @return mixed
+     * @return Response
      * @throws \Exception
      */
     protected function run_step( $step ) {
@@ -249,7 +234,7 @@ class Spider {
 
         // Do we want the output of this request saved to a file?
         if ( $this->sink ):
-            $aSendParameters[ 'sink' ] = $this->sink;
+            $aSendParameters[ 'sink' ] = $this->getSink();
         endif;
 
         $this->log( "    Set the sink" );
@@ -260,10 +245,10 @@ class Spider {
         } catch ( \GuzzleHttp\Exception\ConnectException $e ) {
             $this->log( "    A ConnectException was thrown when the client sent the request [" . $e->getMessage() . "]" );
             $this->sink = NULL;
-            throw new \Exception( "There was a ConnectException thrown when the client sent the request. [" . $e->getMessage() . "]", -200 );
+            throw new Exception( "There was a ConnectException thrown when the client sent the request. [" . $e->getMessage() . "]", -200, $e );
         } catch ( Exception $e ) {
             $this->log( "    An Exception was thrown when the client sent the request... " . $e->getMessage() );
-            throw new \Exception( "There was a generic Exception thrown when the client sent the request.", -300 );
+            throw new Exception( "There was a generic Exception thrown when the client sent the request.", -300, $e );
         }
 
 
@@ -275,10 +260,13 @@ class Spider {
 
         foreach ( $step->failure_rules as $index => $failure_rule ):
             try {
+                /**
+                 * @var FailureRule $failure_rule ;
+                 */
                 $failure_rule->run( $response, $this->debug );
-            } catch ( \Exception $e ) {
+            } catch ( Exception $e ) {
                 $this->log( "    A failure rule was triggered: " . $e->getMessage() );
-                $ex = new \Exception( "Failure rule step: " . $e->getMessage() );
+                $ex = new Exception( "Failure rule step: " . $e->getMessage(), $e );
                 throw $ex;
             }
         endforeach;
@@ -299,16 +287,13 @@ class Spider {
         return $this->client;
     }
 
-    /**
-     * The Step object needs a reference to the cookie jar.
-     * @return \GuzzleHttp\Cookie\CookieJar|null
-     */
-    /*
-    public function &getCookieJar(){
-        return $this->cookie_jar;
-    }
-    */
 
+    /**
+     * @param $argResponseBodyString
+     * @param $argStepName
+     * @return bool
+     * @throws UnableToWriteResponseBodyInDebugFolder
+     */
     protected function saveResponseBodyInDebugFolder( $argResponseBodyString, $argStepName ) {
         if ( $this->debug == FALSE ) {
             return FALSE;
@@ -316,13 +301,13 @@ class Spider {
         $sAbsoluteFilePath = $this->debug_directory . '/' . $this->getRequestDebugFileName( $argStepName );
         $bytes_written     = file_put_contents( $sAbsoluteFilePath, $argResponseBodyString, FILE_APPEND );
         if ( $bytes_written === FALSE ):
-            throw new Exception( "Unable to write the response body to the debug file for step: " . $argStepName );
+            throw new UnableToWriteResponseBodyInDebugFolder( "Unable to write the response body to the debug file for step: " . $argStepName );
         endif;
     }
 
     /**
      * @param string $argResponseBody
-     * @param $argStep
+     * @param \Dprc\Spider\Step $argStep
      * @return bool|int
      * @throws Exception
      */
@@ -331,19 +316,19 @@ class Spider {
         if ( !$argStep->needsResponseSavedToLocalFile() ):
             return FALSE;
         endif;
-        $sLocalFilepath = $argStep->getLocalFilepath();
-        $bytes_written  = file_put_contents( $sLocalFilepath, $argResponseBody, FILE_APPEND );
+        $localFilePath = $argStep->getLocalFilepath();
+        $bytes_written = file_put_contents( $localFilePath, $argResponseBody, FILE_APPEND );
         if ( $bytes_written === FALSE ):
-            throw new Exception( "Unable to write the response body to the local file: " . $sLocalFilepath );
+            throw new UnableToWriteResponseBodyToLocalFile( "Unable to write the response body to the local file: " . $localFilePath );
         endif;
-        $this->local_files_written[ $argStep->getStepName() ] = $sLocalFilepath;
+        $this->local_files_written[ $argStep->getStepName() ] = $localFilePath;
 
         return $bytes_written;
     }
 
 
     /**
-     * @param $argStepName
+     * @param string $argStepName
      * @return string
      */
     protected function getRequestDebugFileName( $argStepName ) {
@@ -373,12 +358,63 @@ class Spider {
         if ( $logWritten ):
             return TRUE;
         endif;
-        throw new Exception( "Unable to write to the log file at " . $this->debug_log );
+        throw new UnableToWriteLogFile( "Unable to write to the log file at " . $this->debug_log );
     }
+
+    /**
+     * @param $argNewDirectory
+     * @return null|string
+     * @throws \Exception
+     */
+    public function setDebugDirectory( $argNewDirectory ) {
+        if ( File::isDirectory( $this->debug_directory ) ):
+            throw new DebugDirectoryAlreadySet( "The debug directory is already set at: " . $this->debug_directory );
+        endif;
+
+        $pathToDebugDirectory = storage_path() . '/spider/' . $argNewDirectory . '/run_' . date( 'YmdHis' );
+        if ( !file_exists( $pathToDebugDirectory ) ):
+            try {
+                $result = File::makeDirectory( $pathToDebugDirectory, 0775, TRUE );
+                chmod( $pathToDebugDirectory, 0777 );
+            } catch ( Exception $e ) {
+                throw new UnableToCreateDebugDirectory( "Unable to create debug directory for the DPRC Spider [" . $pathToDebugDirectory . '] ' . $e->getCode() . ' ' . $e->getMessage(), NULL, $e );
+            }
+        endif;
+        $this->debug_directory = $pathToDebugDirectory;
+
+        $this->setDebugLogPath();
+
+        $this->log( "Debug directory of the Spider was set to: " . $this->debug_directory );
+
+        return $this->debug_directory;
+    }
+
 
     public function getDebugLogPath() {
         return $this->debug_log;
     }
 
+    public function setDebugLogPath() {
+        $this->debug_log = $this->debug_directory . '/debug.log';
+    }
+
+    /**
+     * The dir that contains all of our debug logs gets full in a hurry.
+     * If debug is turned off, then delete these directories.
+     */
+    public function deleteDebugDirectory() {
+        $success = File::deleteDirectory( $this->debug_directory );
+
+        return $success;
+    }
+
+
+    public function getDebugDirectory() {
+        if ( !File::isDirectory( $this->debug_directory ) ):
+            throw new DebugDirectoryNotSet( "The debug directory needs to be set before you can use it." );
+        endif;
+
+        return $this->debug_directory;
+    }
 
 }

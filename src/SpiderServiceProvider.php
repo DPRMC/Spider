@@ -1,4 +1,6 @@
-<?php namespace Dprc\Spider;
+<?php
+
+namespace Dprc\Spider;
 
 use Illuminate\Support\ServiceProvider;
 
@@ -6,14 +8,12 @@ class SpiderServiceProvider extends ServiceProvider {
 
     /**
      * Indicates if loading of the provider is deferred.
-     *
      * @var bool
      */
     protected $defer = FALSE;
 
     /**
      * Bootstrap the application events.
-     *
      * @return void
      */
     public function boot() {

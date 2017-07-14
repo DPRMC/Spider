@@ -1,75 +1,99 @@
 <?php
-
 namespace Dprc\Spider;
 
+use Dprc\Spider\Exceptions\UndefinedFailureRuleType;
+use GuzzleHttp\Psr7\Response;
+use Exception;
 
 class FailureRule {
-    protected $failure_rule_name = 'default_failure_rule_name'; // The Step will use this as the index in the failure_rules array.
+    protected $failureRuleName = 'default_failure_rule_name'; // The Step will use this as the index in the failure_rules array.
 
     /**
      * @var string Right now the only test I am doing is a regex. It could be anything though.
      */
-    protected $rule_type = NULL;
+    protected $ruleType = NULL;
 
 
-    protected $rule_parameters = NULL;
+    /**
+     * @var null
+     */
+    protected $ruleParameters;
 
+    /**
+     * FailureRule constructor.
+     */
     public function __construct() {
 
     }
 
+    /**
+     * @return static
+     */
     public static function instance() {
         return new static();
     }
 
+    /**
+     * @param $argFailureRuleName
+     */
     public function setFailureRuleName( $argFailureRuleName ) {
-        $this->failure_rule_name = $argFailureRuleName;
+        $this->failureRuleName = $argFailureRuleName;
     }
 
+    /**
+     * @return string
+     */
     public function getFailureRuleName() {
-        return $this->failure_rule_name;
+        return $this->failureRuleName;
     }
 
     /**
      * @param string $argRuleType Right now the only one defined is regex.
      */
     public function setRuleType( $argRuleType ) {
-        $this->rule_type = $argRuleType;
+        $this->ruleType = $argRuleType;
     }
 
     /**
      * @return string
      */
     public function getRuleType() {
-        return $this->rule_type;
-    }
-
-    public function setRuleParameters( $argRuleParameters ) {
-        $this->rule_parameters = $argRuleParameters;
-    }
-
-    public function getRuleParameters() {
-        return $this->rule_parameters;
+        return $this->ruleType;
     }
 
     /**
-     * @param $response
+     * @param $argRuleParameters
+     */
+    public function setRuleParameters( $argRuleParameters ) {
+        $this->ruleParameters = $argRuleParameters;
+    }
+
+    /**
+     * @return null
+     */
+    public function getRuleParameters() {
+        return $this->ruleParameters;
+    }
+
+    /**
+     * @param Response $response
      * @param bool $debug
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
     public function run( $response, $debug = FALSE ) {
         $result = FALSE;
-        switch ( $this->rule_type ):
+        switch ( $this->ruleType ):
             case 'regex':
-                $result = $this->runFailureRuleRegEx( $this->rule_parameters, $response->getBody() );
+                $result = $this->runFailureRuleRegEx( $this->ruleParameters, $response->getBody() );
                 break;
             default:
+                throw new UndefinedFailureRuleType( "You attempted to run a failure rule type of [" . $this->ruleType . "]" );
                 break;
         endswitch;
 
         if ( $result === TRUE ): // Failure.
-            throw new \Exception( $this->failure_rule_name, -100 );
+            throw new Exception( $this->failureRuleName, -100 );
         endif;
 
         return TRUE;
@@ -77,8 +101,8 @@ class FailureRule {
 
 
     /**
-     * @param $argPattern
-     * @param $argString
+     * @param string $argPattern The regex pattern.
+     * @param string $argString
      * @return bool
      */
     protected function runFailureRuleRegEx( $argPattern, $argString ) {
