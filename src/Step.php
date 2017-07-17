@@ -144,16 +144,16 @@ class Step {
     }
 
     /**
-     * @param string $argLocalFilepath
+     * @param string $argLocalFilePath
      */
-    public function setLocalFilepath( $argLocalFilepath = '' ) {
-        $this->local_file_path = $argLocalFilepath;
+    public function setLocalFilePath( $argLocalFilePath = '' ) {
+        $this->local_file_path = $argLocalFilePath;
     }
 
     /**
      * @return null
      */
-    public function getLocalFilepath() {
+    public function getLocalFilePath() {
         return $this->local_file_path;
     }
 

@@ -120,8 +120,19 @@ class Spider {
         return TRUE;
     }
 
+    /**
+     * @param $argStepName
+     * @return \Dprc\Spider\Step The Step object referenced by array index: $argStepName
+     */
     public function getStep( $argStepName ) {
         return $this->steps[ $argStepName ];
+    }
+
+    /**
+     * @return array The entire array of Step objects.
+     */
+    public function getSteps() {
+        return $this->steps;
     }
 
 
@@ -316,7 +327,7 @@ class Spider {
         if ( !$argStep->needsResponseSavedToLocalFile() ):
             return FALSE;
         endif;
-        $localFilePath = $argStep->getLocalFilepath();
+        $localFilePath = $argStep->getLocalFilePath();
         $bytes_written = file_put_contents( $localFilePath, $argResponseBody, FILE_APPEND );
         if ( $bytes_written === FALSE ):
             throw new UnableToWriteResponseBodyToLocalFile( "Unable to write the response body to the local file: " . $localFilePath );
