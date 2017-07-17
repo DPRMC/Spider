@@ -235,7 +235,7 @@ class Spider {
 
         $this->log( "    Called step->getRequest()" );
 
-        $aSendParameters = [ 'form_params'     => $step->getFormParam(),
+        $aSendParameters = [ 'form_params'     => $step->getFormParams(),
                              'allow_redirects' => TRUE,
                              'cookies'         => $this->cookie_jar,
                              'debug'           => FALSE,
@@ -358,6 +358,7 @@ class Spider {
     /**
      * @param $message
      * @return bool
+     * @throws UnableToWriteLogFile
      */
     public function log( $message ) {
         if ( !$this->debug ):
@@ -401,10 +402,16 @@ class Spider {
     }
 
 
+    /**
+     * @return string
+     */
     public function getDebugLogPath() {
         return $this->debug_log;
     }
 
+    /**
+     *
+     */
     public function setDebugLogPath() {
         $this->debug_log = $this->debug_directory . '/debug.log';
     }
@@ -420,6 +427,10 @@ class Spider {
     }
 
 
+    /**
+     * @return null
+     * @throws DebugDirectoryNotSet
+     */
     public function getDebugDirectory() {
         if ( !File::isDirectory( $this->debug_directory ) ):
             throw new DebugDirectoryNotSet( "The debug directory needs to be set before you can use it." );

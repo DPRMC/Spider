@@ -82,7 +82,7 @@ class FailureRule {
      * @throws Exception
      */
     public function run( $response, $debug = FALSE ) {
-        $result = FALSE;
+
         switch ( $this->ruleType ):
             case 'regex':
                 $result = $this->runFailureRuleRegEx( $this->ruleParameters, $response->getBody() );
@@ -91,8 +91,8 @@ class FailureRule {
                 throw new UndefinedFailureRuleType( "You attempted to run a failure rule type of [" . $this->ruleType . "]" );
                 break;
         endswitch;
-
-        if ( $result === TRUE ): // Failure.
+        // TRUE represents a Failure here.
+        if ( $result === TRUE ):
             throw new Exception( $this->failureRuleName, -100 );
         endif;
 
