@@ -3,7 +3,7 @@
   "description": "A simple web spider used to make more complex spiders.",
   "type": "library",
   "require": {
-    "php": ">=5.6.29",
+    "php": ">=5.6",
     "guzzlehttp/guzzle": "^6.3",
     "league/flysystem": "^1.0",
     "guzzlehttp/psr7": "^1.4"
