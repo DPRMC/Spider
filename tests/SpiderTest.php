@@ -97,5 +97,9 @@ class SpiderTest extends TestCase {
         $this->assertTrue( file_exists( $fileName ) );
     }
 
+    public function testSaveResponseToLocalFile() {
+        $this->assertTrue( TRUE );
+    }
+
 
 }
