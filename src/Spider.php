@@ -129,6 +129,7 @@ class Spider {
 
 
     /**
+     * A Spider can't do much without steps. Add Step objects to this Spider, and it will try to run each Step in order.
      * @param \Dprc\Spider\Step $stepObject
      * @param string $stepName Used as a key in the array of steps
      * @return bool
@@ -144,6 +145,39 @@ class Spider {
 
         return TRUE;
     }
+
+    /**
+     * @return array An array of all of the responses from each of the steps.
+     * @throws \Exception
+     */
+    public function run() {
+        $this->log( "Inside spider->run()" );
+
+        // Will throw exception if the debug directory is not set.
+        $this->getDebugDirectory();
+
+        // Run all of the steps. Catch, log, and rethrow any Exceptions thrown from the run_step() method.
+        foreach ( $this->steps as $index => $step ):
+            try {
+                $this->log( "Started step #" . $index );
+                $response = $this->run_step( $step );
+                $this->log( "[Finished step #" . $index . "] " . substr( $response->getBody(), 0, 50 ) );
+            } catch ( Exception $e ) {
+                $this->log( "Exception (" . get_class( $e ) . ") in spider->run(): " . $e->getMessage() . " " . $e->getFile() . ':' . $e->getLine() );
+                throw $e;
+            }
+        endforeach;
+
+        $this->log( "Removing [" . count( $this->steps ) . "] steps that were completed from this spider." );
+
+        // Prep the Spider to have more Steps added.
+        // The alternative would be to maintain a pointer in the steps array to keep track of where we are.
+        $this->steps = [];
+        $this->log( "Exiting spider->run() and returning " . count( $this->responses ) . " HTTP client responses." );
+
+        return $this->responses;
+    }
+
 
     /**
      * @param string $stepName
@@ -198,37 +232,7 @@ class Spider {
     }
 
 
-    /**
-     * @return array An array of all of the responses from each of the steps.
-     * @throws \Exception
-     */
-    public function run() {
-        $this->log( "Inside spider->run()" );
 
-        // Will throw exception if the debug directory is not set.
-        $this->getDebugDirectory();
-
-        // Run all of the steps. Catch, log, and rethrow any Exceptions thrown from the run_step() method.
-        foreach ( $this->steps as $index => $step ):
-            try {
-                $this->log( "Started step #" . $index );
-                $response = $this->run_step( $step );
-                $this->log( "[Finished step #" . $index . "] " . substr( $response->getBody(), 0, 50 ) );
-            } catch ( Exception $e ) {
-                $this->log( "Exception (" . get_class( $e ) . ") in spider->run(): " . $e->getMessage() . " " . $e->getFile() . ':' . $e->getLine() );
-                throw $e;
-            }
-        endforeach;
-
-        $this->log( "Removing [" . count( $this->steps ) . "] steps that were completed from this spider." );
-
-        // Prep the Spider to have more Steps added.
-        // The alternative would be to maintain a pointer in the steps array to keep track of where we are.
-        $this->steps = [];
-        $this->log( "Exiting spider->run() and returning " . count( $this->responses ) . " HTTP client responses." );
-
-        return $this->responses;
-    }
 
 
     /**
@@ -303,7 +307,7 @@ class Spider {
             $this->responses[] = $response;
         endif;
 
-        foreach ( $step->failure_rules as $index => $failure_rule ):
+        foreach ( $step->failureRules as $index => $failure_rule ):
             try {
                 /**
                  * @var FailureRule $failure_rule ;
@@ -358,7 +362,7 @@ class Spider {
      * @return bool|int
      * @throws Exception
      */
-    protected function saveResponseToLocalFile( $argResponseBody = '', $argStep ) {
+    public function saveResponseToLocalFile( $argResponseBody = '', $argStep ) {
 
         if ( !$argStep->needsResponseSavedToLocalFile() ):
             return FALSE;

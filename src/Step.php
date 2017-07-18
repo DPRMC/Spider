@@ -19,7 +19,7 @@ class Step {
     /**
      * @var array
      */
-    protected $form_params = [];
+    protected $formParams = [];
 
     /**
      * @var string get or post
@@ -46,27 +46,27 @@ class Step {
     /**
      * @var string
      */
-    protected $http_protocol_version = '1.1';
+    protected $httpProtocolVersion = '1.1';
 
     /**
      * @var null Spiders can name each of the steps. Set outside of this object.
      */
-    protected $step_name = NULL;
+    protected $stepName = NULL;
 
     /**
      * @var array
      */
-    public $failure_rules = [];
+    public $failureRules = [];
 
     /**
      * @var array Index must match failure rule index.
      */
-    public $next_steps_on_failure = [];
+    public $nextStepsOnFailure = [];
 
     /**
      * @var null Want to save the output of this step to a file? Like an XLS?
      */
-    protected $local_file_path = NULL;
+    protected $localFilePath = NULL;
 
     /**
      * Step constructor.
@@ -150,38 +150,35 @@ class Step {
      * @param $argValue
      */
     public function addFormParam( $argName, $argValue ) {
-        $this->form_params[ $argName ] = $argValue;
+        $this->formParams[ $argName ] = $argValue;
     }
 
     /**
      * @return array
      */
     public function getFormParams() {
-        return $this->form_params;
+        return $this->formParams;
     }
 
     /**
      * @return Request
      */
     public function getRequest() {
-        return new Request( $this->method, $this->url, $this->headers, $this->body, $this->http_protocol_version );
+        return new Request( $this->method, $this->url, $this->headers, $this->body, $this->httpProtocolVersion );
     }
 
 
     /**
-     * @param FailureRule $argFailureRule
-     * @param null $argFailureRuleIndex
-     * @return bool
+     * @param FailureRule $failureRule
+     * @param null $failureRuleName Used as the index for this failure rule in the failureRules array.
      */
-    public function addFailureRule( $argFailureRule, $argFailureRuleIndex = NULL ) {
-        $argFailureRule->setFailureRuleName( $argFailureRuleIndex );
-        if ( $argFailureRuleIndex ):
-            $this->failure_rules[ $argFailureRuleIndex ] = $argFailureRule;
+    public function addFailureRule( $failureRule, $failureRuleName = NULL ) {
+        $failureRule->setFailureRuleName( $failureRuleName );
+        if ( $failureRuleName ):
+            $this->failureRules[ $failureRuleName ] = $failureRule;
         else:
-            $this->failure_rules[] = $argFailureRule;
+            $this->failureRules[] = $failureRule;
         endif;
-
-        return TRUE;
     }
 
 
@@ -189,35 +186,35 @@ class Step {
      * @param string $argStepName
      */
     public function setStepName( $argStepName ) {
-        $this->step_name = $argStepName;
+        $this->stepName = $argStepName;
     }
 
     /**
-     * @return string
+     * @return string Return the name given to this Step.
      */
     public function getStepName() {
-        return $this->step_name;
+        return $this->stepName;
     }
 
     /**
      * @param string $argLocalFilePath
      */
     public function setLocalFilePath( $argLocalFilePath = '' ) {
-        $this->local_file_path = $argLocalFilePath;
+        $this->localFilePath = $argLocalFilePath;
     }
 
     /**
-     * @return null
+     * @return string
      */
     public function getLocalFilePath() {
-        return $this->local_file_path;
+        return $this->localFilePath;
     }
 
     /**
      * @return bool
      */
     public function needsResponseSavedToLocalFile() {
-        if ( $this->local_file_path ):
+        if ( $this->localFilePath ):
             return TRUE;
         endif;
 
