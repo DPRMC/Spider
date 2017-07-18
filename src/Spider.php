@@ -2,15 +2,18 @@
 // http://docs.guzzlephp.org/en/latest/quickstart.html
 namespace Dprc\Spider;
 
+
+use Exception;
+use Dprc\Spider\Exceptions\DebugDirectoryAlreadySet;
 use Dprc\Spider\Exceptions\DebugDirectoryNotSet;
+use Dprc\Spider\Exceptions\DebugDirectoryNotWritable;
 use Dprc\Spider\Exceptions\IndexNotFoundInResponsesArray;
 use Dprc\Spider\Exceptions\UnableToCreateDebugDirectory;
 use Dprc\Spider\Exceptions\UnableToWriteLogFile;
 use Dprc\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
 use Dprc\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
-use Exception;
+use Dprc\Spider\Exceptions\UnableToFindStepWithStepName;
 
-use Dprc\Spider\Exceptions\DebugDirectoryAlreadySet;
 use Dprc\Spider\Step;
 
 /**
@@ -21,6 +24,8 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\Response;
 use League\Flysystem\File;
+use League\Flysystem\Filesystem;
+use League\Flysystem\Adapter\Local;
 
 
 /**
@@ -29,29 +34,29 @@ use League\Flysystem\File;
  */
 class Spider {
     /**
-     * @var Client|null
+     * @var Client The Guzzle HTTP client.
      */
-    protected $client = NULL;
+    protected $client;
 
     /**
-     * @var \GuzzleHttp\Cookie\CookieJar|null
+     * @var \GuzzleHttp\Cookie\CookieJar
      */
-    public $cookie_jar = NULL;
+    public $cookie_jar;
 
     /**
-     * @var array
+     * @var array An array of the responses from each step. Indexed by step name.
      */
     protected $responses = [];
 
     /**
-     * @var array
+     * @var array My Step objects indexed by step name.
      */
-    protected $steps = []; // An array of Step objects
+    protected $steps = [];
 
     /**
-     * @var null Want to save the body of the response to a file?
+     * @var string Want to save the body of the response to a file? This is the absolute path to that location.
      */
-    protected $sink = NULL;
+    protected $sink;
 
     /**
      * @var null
@@ -79,10 +84,19 @@ class Spider {
     protected $local_files_written = [];
 
     /**
+     * @var Filesystem;
+     */
+    protected $debugFilesystem;
+
+
+    /**
      * Spider constructor.
+     * @param $pathToStorage
      * @param bool $debug
      */
-    public function __construct( $debug = FALSE ) {
+    public function __construct( $pathToStorage, $debug = FALSE ) {
+        $this->setDebugFilesystem( $pathToStorage );
+
         $this->debug  = $debug;
         $this->client = new Client( [ // Base URI is used with relative requests
                                       //'base_uri' => 'example.com',
@@ -94,38 +108,54 @@ class Spider {
         $this->cookie_jar = new CookieJar();
     }
 
-
     /**
-     * @return static
+     * I'm using the Flysystem package to manage my debug directory.
+     * @param $pathToStorage
+     * @throws DebugDirectoryNotWritable
      */
-    public static function instance( $debug ) {
-        return new static( $debug );
+    public function setDebugFilesystem( $pathToStorage ) {
+        $adapter = new Local( $pathToStorage, LOCK_SH );
+
+        $this->debugFilesystem = new Filesystem( $adapter );
+        try {
+            $readMeFileWritten = $this->debugFilesystem->put( "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
+            if ( !$readMeFileWritten ):
+                throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
+            endif;
+        } catch ( Exception $e ) {
+            throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
+        }
     }
 
 
     /**
-     * @param Step $argStepObject
-     * @param null $argStepName - Used as a key in the array of steps
+     * @param \Dprc\Spider\Step $stepObject
+     * @param string $stepName Used as a key in the array of steps
      * @return bool
      */
-    public function addStep( $argStepObject, $argStepName ) {
-        $argStepObject->setStepName( $argStepName );
-        if ( $argStepName ):
-            $this->steps[ $argStepName ] = $argStepObject;
+    public function addStep( $stepObject, $stepName = NULL ) {
+        $stepObject->setStepName( $stepName );
+        if ( $stepName ):
+            $this->steps[ $stepName ] = $stepObject;
         else:
-            $this->steps[] = $argStepObject;
+            $this->steps[] = $stepObject;
         endif;
-        $this->log( 'Step added. [' . count( $this->steps ) . '] [' . $argStepName . '] ' . $argStepObject->getUrl() );
+        $this->log( 'Step added. [' . count( $this->steps ) . '] [' . $stepName . '] ' . $stepObject->getUrl() );
 
         return TRUE;
     }
 
     /**
-     * @param $argStepName
+     * @param string $stepName
      * @return \Dprc\Spider\Step The Step object referenced by array index: $argStepName
+     * @throws UnableToFindStepWithStepName
      */
-    public function getStep( $argStepName ) {
-        return $this->steps[ $argStepName ];
+    public function getStep( $stepName ) {
+        if ( !isset( $this->steps[ $stepName ] ) ):
+            throw new UnableToFindStepWithStepName( "Step not found under: " . $stepName );
+        endif;
+
+        return $this->steps[ $stepName ];
     }
 
     /**
@@ -136,8 +166,12 @@ class Spider {
     }
 
 
-    public function getStepHost( $argStepName ) {
-        return $this->steps[ $argStepName ]->getHost();
+    /**
+     * @param $stepName
+     * @return string
+     */
+    public function getStepHost( $stepName ) {
+        return $this->steps[ $stepName ]->getHost();
     }
 
     /**
@@ -300,19 +334,21 @@ class Spider {
 
 
     /**
-     * @param $argResponseBodyString
-     * @param $argStepName
+     * @param $responseBodyString
+     * @param $stepName
      * @return bool
      * @throws UnableToWriteResponseBodyInDebugFolder
      */
-    protected function saveResponseBodyInDebugFolder( $argResponseBodyString, $argStepName ) {
-        if ( $this->debug == FALSE ) {
+    public function saveResponseBodyInDebugFolder( $responseBodyString, $stepName ) {
+        if ( FALSE === $this->debug ) {
             return FALSE;
         }
-        $sAbsoluteFilePath = $this->debug_directory . '/' . $this->getRequestDebugFileName( $argStepName );
-        $bytes_written     = file_put_contents( $sAbsoluteFilePath, $argResponseBodyString, FILE_APPEND );
+
+        $debugFileName = $this->getRequestDebugFileName( $stepName );
+        $bytes_written = $this->debugFilesystem->write( $debugFileName, $responseBodyString );
+
         if ( $bytes_written === FALSE ):
-            throw new UnableToWriteResponseBodyInDebugFolder( "Unable to write the response body to the debug file for step: " . $argStepName );
+            throw new UnableToWriteResponseBodyInDebugFolder( "Unable to write the response body to the debug file for step: " . $stepName );
         endif;
     }
 
@@ -339,10 +375,11 @@ class Spider {
 
 
     /**
+     * Creates a debug file name based off the step name and returns it.
      * @param string $argStepName
      * @return string
      */
-    protected function getRequestDebugFileName( $argStepName ) {
+    public function getRequestDebugFileName( $argStepName ) {
         return 'request_' . time() . '_' . $argStepName . '.dprc';
     }
 
@@ -374,16 +411,16 @@ class Spider {
     }
 
     /**
-     * @param $argNewDirectory
+     * @param $directory
      * @return null|string
      * @throws \Exception
      */
-    public function setDebugDirectory( $argNewDirectory ) {
+    public function setDebugDirectory( $directory ) {
         if ( File::isDirectory( $this->debug_directory ) ):
             throw new DebugDirectoryAlreadySet( "The debug directory is already set at: " . $this->debug_directory );
         endif;
 
-        $pathToDebugDirectory = storage_path() . '/spider/' . $argNewDirectory . '/run_' . date( 'YmdHis' );
+        $pathToDebugDirectory = storage_path() . '/spider/' . $directory . '/run_' . date( 'YmdHis' );
         if ( !file_exists( $pathToDebugDirectory ) ):
             try {
                 $result = File::makeDirectory( $pathToDebugDirectory, 0775, TRUE );
