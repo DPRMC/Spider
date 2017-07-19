@@ -49,9 +49,9 @@ class Step {
     protected $httpProtocolVersion = '1.1';
 
     /**
-     * @var null Spiders can name each of the steps. Set outside of this object.
+     * @var string Spiders can name each of the steps. Set outside of this object.
      */
-    protected $stepName = NULL;
+    protected $stepName;
 
     /**
      * @var array
@@ -183,10 +183,10 @@ class Step {
 
 
     /**
-     * @param string $argStepName
+     * @param string $stepName
      */
-    public function setStepName( $argStepName ) {
-        $this->stepName = $argStepName;
+    public function setStepName( $stepName ) {
+        $this->stepName = $stepName;
     }
 
     /**
@@ -196,29 +196,7 @@ class Step {
         return $this->stepName;
     }
 
-    /**
-     * @param string $argLocalFilePath
-     */
-    public function setLocalFilePath( $argLocalFilePath = '' ) {
-        $this->localFilePath = $argLocalFilePath;
-    }
 
-    /**
-     * @return string
-     */
-    public function getLocalFilePath() {
-        return $this->localFilePath;
-    }
 
-    /**
-     * @return bool
-     */
-    public function needsResponseSavedToLocalFile() {
-        if ( $this->localFilePath ):
-            return TRUE;
-        endif;
-
-        return FALSE;
-    }
 
 }

@@ -7,10 +7,10 @@ use Dprc\Spider\Step;
 use Dprc\Spider\Exceptions\DebugDirectoryNotWritable;
 
 use org\bovigo\vfs\vfsStream;
-use PHPUnit\Framework\TestCase;
+
 use Exception;
 
-class SpiderTest extends TestCase {
+class SpiderTest extends SpiderTestCase {
 
     public function testConstructor() {
         $mockFileSystem = vfsStream::setup( 'root', 0777 );
@@ -47,8 +47,9 @@ class SpiderTest extends TestCase {
         $mockFileSystem = vfsStream::setup();
         $spider         = new Spider( $mockFileSystem->url() );
         $step           = new Step();
+        $stepName       = 'testStepName';
 
-        $spider->addStep( $step );
+        $spider->addStep( $step, $stepName );
         $steps    = $spider->getSteps();
         $numSteps = count( $steps );
         $this->assertEquals( 1, $numSteps );
@@ -77,23 +78,40 @@ class SpiderTest extends TestCase {
     }
 
 
-    public function testGetRequestDebugFileName() {
-        $mockFileSystem = vfsStream::setup();
-        $spider         = new Spider( $mockFileSystem->url() );
-        $stepName       = 'test';
-        $time           = time();
-        $expected       = 'request_' . $time . '_' . $stepName . '.dprc';
-        $debugFileName  = $spider->getRequestDebugFileName( $stepName );
-        $this->assertEquals( $expected, $debugFileName );
-    }
+    //    public function testGetRequestDebugFileName() {
+    //        $mockFileSystem = vfsStream::setup();
+    //        $spider         = new Spider( $mockFileSystem->url() );
+    //        $stepName       = 'test';
+    //        $time           = time();
+    //        $expected       = 'request_' . $time . '_' . $stepName . '.dprc';
+    //        $debugFileName  = $spider->debugGetRequestDebugFileName( $stepName );
+    //        $this->assertEquals( $expected, $debugFileName );
+    //    }
 
     public function testSaveResponseBodyInDebugFolder() {
-        $mockFileSystem     = vfsStream::setup();
-        $spider             = new Spider( $mockFileSystem->url() );
+        $mockFileSystem    = vfsStream::setup();
+        $mockFileSystemUrl = $mockFileSystem->url();
+        echo "\n\n\n";
+        var_dump( $mockFileSystemUrl );
+        echo "\n\n\n";
+        $spider             = new Spider( $mockFileSystemUrl, TRUE );
         $responseBodyString = "This is the response body.";
         $stepName           = 'testStepName';
-        $spider->saveResponseBodyInDebugFolder( $responseBodyString, $stepName );
-        $fileName = $mockFileSystem->url( $spider->getRequestDebugFileName( $stepName ) );
+
+        var_dump( $spider );
+
+        //$spider->debugSaveResponseBodyInDebugFolder( $responseBodyString, $stepName );
+        $this->invokeMethod( $spider, 'debugSaveResponseBodyInDebugFolder', [ $responseBodyString,
+                                                                              $stepName ] );
+
+        $requestDebugFileName = $this->invokeMethod( $spider, 'debugGetRequestDebugFileName', [ $stepName ] );
+        var_dump( $requestDebugFileName );
+        //$fileName = $mockFileSystem->url( $spider->debugGetRequestDebugFileName( $stepName ) );
+        $fileName = vfsStream::url( $requestDebugFileName );
+        var_dump( $fileName );
+        var_dump( vfsStream::url( 'README.md' ) );
+        var_dump( file( vfsStream::url( 'README.md' ) ) );
+
         $this->assertTrue( file_exists( $fileName ) );
     }
 

@@ -1,6 +1,7 @@
 <?php
 namespace Dprc\Spider;
 
+use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
 use Dprc\Spider\Exceptions\UndefinedFailureRuleType;
 use GuzzleHttp\Psr7\Response;
 use Exception;
@@ -77,8 +78,7 @@ class FailureRule {
 
     /**
      * @param Response $response
-     * @param bool $debug
-     * @return bool
+     * @param bool     $debug
      * @throws Exception
      */
     public function run( $response, $debug = FALSE ) {
@@ -93,10 +93,8 @@ class FailureRule {
         endswitch;
         // TRUE represents a Failure here.
         if ( $result === TRUE ):
-            throw new Exception( $this->failureRuleName, -100 );
+            throw new FailureRuleTriggeredException( $this->failureRuleName, -100 );
         endif;
-
-        return TRUE;
     }
 
 

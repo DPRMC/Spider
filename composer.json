@@ -21,7 +21,8 @@
   "minimum-stability": "stable",
   "autoload": {
     "classmap": [
-      "src/"
+      "src/",
+      "tests/"
     ]
   },
   "license": "MIT"
