@@ -3,6 +3,8 @@
 namespace Dprc\Spider\Tests;
 
 use PHPUnit\Framework\TestCase;
+use org\bovigo\vfs\vfsStream;
+use Dprc\Spider\Spider;
 
 class SpiderTestCase extends TestCase {
     /**
@@ -20,5 +22,18 @@ class SpiderTestCase extends TestCase {
         $method->setAccessible( TRUE );
 
         return $method->invokeArgs( $object, $parameters );
+    }
+
+    /**
+     * @param bool $debug
+     *
+     * @return Spider
+     */
+    protected function getSpiderWithUnlimitedDiskSpace( $debug = FALSE ) {
+        $mockFileSystem    = vfsStream::setup( 'root' );
+        $mockFileSystemUrl = $mockFileSystem->url( 'root' );
+        vfsStream::setQuota( -1 );
+
+        return new Spider( $mockFileSystemUrl, TRUE );
     }
 }

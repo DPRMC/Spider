@@ -137,12 +137,12 @@ class Spider {
 
         // Now make sure that we can write to the file system.
         try {
-            $readMeFileWritten = $this->debugFilesystem->put( "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
+            $readMeFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
             if ( ! $readMeFileWritten ):
                 throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
             endif;
         } catch ( Exception $e ) {
-            throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
+            throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage, 100, $e );
         }
     }
 
@@ -304,17 +304,23 @@ class Spider {
      * @return bool
      * @throws UnableToWriteResponseBodyInDebugFolder
      */
-    public function debugSaveResponseBodyInDebugFolder( $responseBodyString, $stepName ) {
+    private function debugSaveResponseBodyInDebugFolder( $responseBodyString, $stepName ) {
         if ( FALSE === $this->debug ) {
             return FALSE;
         }
 
         $debugFileName = $this->debugGetRequestDebugFileName( $stepName );
-        $bytesWritten  = $this->debugFilesystem->write( $debugFileName, $responseBodyString );
 
-        if ( FALSE === $bytesWritten ):
+        try {
+            $written = $this->debugFilesystem->write( $debugFileName, $responseBodyString );
+
+            if ( FALSE === $written ):
+                throw new UnableToWriteResponseBodyInDebugFolder( "Unable to write the response body to the debug file for step: " . $stepName );
+            endif;
+        } catch ( Exception $e ) {
             throw new UnableToWriteResponseBodyInDebugFolder( "Unable to write the response body to the debug file for step: " . $stepName );
-        endif;
+        }
+
 
         return TRUE;
     }
@@ -347,9 +353,6 @@ class Spider {
      */
     public function saveResponseToLocalFile( $responseBody = '', $step ) {
 
-        if ( ! $step->needsResponseSavedToLocalFile() ):
-            return FALSE;
-        endif;
         $localFilePath = $step->getLocalFilePath();
         $bytesWritten  = file_put_contents( $localFilePath, $responseBody, FILE_APPEND );
         if ( FALSE === $bytesWritten ):
@@ -441,50 +444,29 @@ class Spider {
     /**
      * @return string The path to the debug log file.
      */
-    private function debugGetLogPath() {
+    protected function debugGetLogPath() {
         return $this->debugLogPath;
     }
 
-    /**
-     * Getter for the path to the debug directory.
-     * @return null
-     * @throws DebugDirectoryNotSet
-     */
-    private function debugGetPathToDebugDirectory() {
-        if ( ! is_dir( $this->pathToDebugDirectory ) ):
-            throw new DebugDirectoryNotSet( "The debug directory needs to be set before you can use it." );
-        endif;
 
-        return $this->pathToDebugDirectory;
+    /**
+     * @throws UnableToCreateDebugRunDirectory
+     */
+    private function debugSetPathToRunDirectory() {
+        $runFolderName      = 'run_' . date( 'YmdHis' );
+        $pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
+        $this->debugFilesystem->createDir( $pathToRunDirectory );
+        $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
+        $this->pathToRunDirectory = $pathToRunDirectory;
+        $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
     }
 
     /**
-     * @param $directory
-     *
-     * @return null|string
-     * @throws \Exception
+     * A getter for this Spider's run directory.
+     * @return string
      */
-    private function debugSetPathToRunDirectory() {
-        if ( is_dir( $this->pathToDebugDirectory ) ):
-            throw new DebugDirectoryAlreadySet( "The debug directory is already set at: " . $this->pathToDebugDirectory );
-        endif;
-
-        $runFolderName   = 'run_' . date( 'YmdHis' );
-        $pathToRunFolder = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
-        if ( ! $this->debugFilesystem->has( $pathToRunFolder ) ):
-            try {
-                $this->debugFilesystem->createDir( $pathToRunFolder );
-                $this->debugFilesystem->setVisibility( $pathToRunFolder, 'private' );
-            } catch ( Exception $e ) {
-                throw new UnableToCreateDebugRunDirectory( "Unable to create debug run directory for the Spider [" . $pathToRunFolder . '] ' . $e->getCode() . ' ' . $e->getMessage(), NULL, $e );
-            }
-        endif;
-
-        $this->pathToRunDirectory = $pathToRunFolder;
-
-        $this->log( "Debug run directory of the Spider was set to: " . $this->pathToDebugDirectory );
-
-        return $this->pathToDebugDirectory;
+    public function getPathToRunDirectory() {
+        return $this->pathToRunDirectory;
     }
 
     private function numSteps() {
