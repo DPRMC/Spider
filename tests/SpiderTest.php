@@ -2,11 +2,13 @@
 
 namespace Dprc\Spider\Tests;
 
+use Dprc\Spider\Exceptions\IndexNotFoundInResponsesArray;
 use Dprc\Spider\Spider;
 use Dprc\Spider\Step;
 use Dprc\Spider\Exceptions\DebugDirectoryNotWritable;
 use Dprc\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
 
+use GuzzleHttp\Client;
 use org\bovigo\vfs\content\LargeFileContent;
 use org\bovigo\vfs\vfsStream;
 
@@ -156,8 +158,8 @@ class SpiderTest extends SpiderTestCase {
         $mockFileSystem = vfsStream::setup( 'root' );
 
         $largeFile         = vfsStream::newFile( 'tooLarge.txt' )
-                                      ->withContent( LargeFileContent::withKilobytes( 2 ) )
-                                      ->at( $mockFileSystem );
+            ->withContent( LargeFileContent::withKilobytes( 2 ) )
+            ->at( $mockFileSystem );
         $mockFileSystemUrl = $mockFileSystem->url( 'root' );
 
         $spider = new Spider( $mockFileSystemUrl, TRUE );
@@ -172,13 +174,10 @@ class SpiderTest extends SpiderTestCase {
 
 
     public function testDebugGetLogPath() {
-        $spider    = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $spider = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $pathToLog = $this->invokeMethod( $spider, 'debugGetLogPath', [] );
         $this->assertNotEmpty( $pathToLog );
     }
-
-
-
 
 
     public function testSaveResponseToLocalFile() {
@@ -192,6 +191,34 @@ class SpiderTest extends SpiderTestCase {
         $spider = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $actual = $this->invokeMethod( $spider, 'numResponses', [] );
         $this->assertEquals( 0, $actual );
+    }
+
+    public function testGetLocalFilesWritten() {
+        $spider               = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $localFilesWritten    = $spider->getLocalFilesWritten();
+        $numLocalFilesWritten = count( $localFilesWritten );
+        $this->assertEquals( 0, $numLocalFilesWritten );
+    }
+
+    public function testGetClient() {
+        $spider = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $client = $spider->getClient();
+        $this->assertInstanceOf( Client::class, $client );
+    }
+
+
+    public function testGetResponseFromInvalidStepName() {
+        $this->expectException( IndexNotFoundInResponsesArray::class );
+        $spider = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $spider->getResponse( 'invalidStepName' );
+    }
+
+    public function testGetResponseFromValidStepName() {
+        $spider   = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $step     = new Step();
+        $stepName = 'testStep';
+
+        $spider->addStep( $step, $stepName );
     }
 
 
