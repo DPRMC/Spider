@@ -3,6 +3,7 @@
 namespace Dprc\Spider;
 
 
+use Dprc\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
 use Exception;
 use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
 
@@ -36,6 +37,10 @@ use League\Flysystem\Adapter\Local;
  */
 class Spider {
     /**
+     *
+     */
+    const DEBUG_LOG_FILE_NAME = 'debug.log';
+    /**
      * @var \GuzzleHttp\Cookie\CookieJar
      */
     public $cookie_jar;
@@ -47,57 +52,42 @@ class Spider {
      * @var array An array of the responses from each step. Indexed by step name.
      */
     protected $responses = [];
-
     /**
      * @var array My Step objects indexed by step name.
      */
     protected $steps = [];
-
     /**
      * @var string Want to save the body of the response to a file? This is the absolute path to that location.
      */
     protected $sink;
-
     /**
      * @var string The absolute path to the debug directory.
      */
     protected $pathToDebugDirectory;
-
     /**
      * @var int Increment after every run_step() call
      */
     protected $numberOfStepsExecuted = 0;
-
     /**
      * @var bool Do you want to enable debugging for this spider.
      */
     protected $debug = FALSE;
-
     /**
      * @var Filesystem;
      */
     protected $debugFilesystem;
-
-    /**
-     * @var string The name of the debug log file.
-     */
-    private $debugLogFileName = 'debug.log';
-
     /**
      * @var string Absolute file path to the debug log.
      */
     protected $debugLogPath;
-
-    /**
-     * @var string $pathToRunDirectory The run directory where you can find the debug log and output from each Step the Spider took.
-     */
-    private $pathToRunDirectory;
-
     /**
      * @var array Have you been writing files to the local filesystem? Keep track of them here.
      */
     protected $localFilesWritten = [];
-
+    /**
+     * @var string $pathToRunDirectory The run directory where you can find the debug log and output from each Step the Spider took.
+     */
+    private $pathToRunDirectory;
 
     /**
      * Spider constructor.
@@ -110,15 +100,15 @@ class Spider {
         $this->debugSetLogPath();
         $this->debugSetPathToRunDirectory();
 
-        $this->debug  = $debug;
-        $this->client = new Client( [ // Base URI is used with relative requests
-                                      //'base_uri' => 'example.com',
-                                      // You can set any number of default request options.
-                                      //'timeout'  => 2.0,
-                                      //'cookies' => true
-                                    ] );
-
-        $this->cookie_jar = new CookieJar();
+        $this->debug = $debug;
+        //        $this->client = new Client( [ // Base URI is used with relative requests
+        //                                      //'base_uri' => 'example.com',
+        //                                      // You can set any number of default request options.
+        //                                      //'timeout'  => 2.0,
+        //                                      //'cookies' => true
+        //                                    ] );
+        //
+        //        $this->cookie_jar = new CookieJar();
     }
 
     /**
@@ -131,36 +121,70 @@ class Spider {
      * @throws DebugDirectoryNotWritable
      */
     private function debugSetFilesystem( $pathToStorage ) {
-        $adapter = new Local( $pathToStorage, LOCK_SH );
-
+        $this->pathToDebugDirectory = $pathToStorage;
+        //$adapter = new Local( $pathToStorage, LOCK_SH );
+        $adapter               = new Local( $pathToStorage, 0 );
         $this->debugFilesystem = new Filesystem( $adapter );
 
         // Now make sure that we can write to the file system.
         try {
+            $timestamp = date( 'Y-m-d H:i:s' );
+            //$debugFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME, "\n[$timestamp] " . "Log file created.");
+            $debugFileWritten = $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, "poop" );
+            if ( $debugFileWritten === FALSE ):
+                throw new Exception( "Unable to write to the debuglog file." );
+            endif;
+            var_dump( $this->getDebugLogContents() );
+
             $readMeFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
-            if ( ! $readMeFileWritten ):
+            if ( $readMeFileWritten === false ):
                 throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
             endif;
         } catch ( Exception $e ) {
+            print_r( $e->getMessage() );
             throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage, 100, $e );
         }
     }
 
+    public function getDebugLogContents() {
+        $path = $this->debugGetLogPath();
+
+        return $this->debugFilesystem->read( $path );
+    }
 
     /**
-     * A Spider can't do much without steps to follow.
-     * Add Step objects to this Spider, and it will try to run each Step in order.
-     *
-     * @param \Dprc\Spider\Step $stepObject The Step object that was created in the calling code.
-     * @param string            $stepName   Used as a key in the array of steps
+     * @return string The path to the debug log file.
      */
-    public function addStep( $stepObject, $stepName ) {
-        // It's useful for a Step to know what it's Spider has named it.
-        $stepObject->setStepName( $stepName );
+    protected function debugGetLogPath() {
 
-        $this->steps[ $stepName ] = $stepObject;
+        return $this->debugLogPath;
+    }
 
-        $this->log( 'Step added. [' . $this->numSteps() . '] [' . $stepName . '] ' . $stepObject->getUrl() );
+    /**
+     * If debugging is turned on, then file at this path will have a ton of useful debugging info.
+     */
+    private function debugSetLogPath() {
+        $this->debugLogPath = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME;
+    }
+
+    /**
+     * @throws UnableToCreateDebugRunDirectory
+     */
+    private function debugSetPathToRunDirectory() {
+        $runFolderName      = 'run_' . date( 'YmdHis' );
+        $pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
+        $dirWasCreated      = $this->debugFilesystem->createDir( $pathToRunDirectory );
+        if ( $dirWasCreated === false ):
+            throw new UnableToCreateDebugRunDirectory( "Flysystem->createDir() returned false." );
+        endif;
+        $dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
+        if ( $dirWasSetToPrivate === false ):
+            throw new UnableToSetVisibilityOfDebugRunDirectory( "Flysystem->setVisibility() was not able to chmod the dir." );
+        endif;
+        $this->pathToRunDirectory = $pathToRunDirectory;
+        $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
+
+
     }
 
     /**
@@ -180,6 +204,26 @@ class Spider {
             return TRUE;
         endif;
         throw new UnableToWriteLogFile( "Unable to write to the log file at " . $this->debugLogPath );
+    }
+
+    /**
+     * A Spider can't do much without steps to follow.
+     * Add Step objects to this Spider, and it will try to run each Step in order.
+     *
+     * @param \Dprc\Spider\Step $stepObject The Step object that was created in the calling code.
+     * @param string            $stepName   Used as a key in the array of steps
+     */
+    public function addStep( $stepObject, $stepName ) {
+        // It's useful for a Step to know what it's Spider has named it.
+        $stepObject->setStepName( $stepName );
+
+        $this->steps[ $stepName ] = $stepObject;
+
+        $this->log( 'Step added. [' . $this->numSteps() . '] [' . $stepName . '] ' . $stepObject->getUrl() );
+    }
+
+    private function numSteps() {
+        return count( $this->steps );
     }
 
     /**
@@ -298,6 +342,14 @@ class Spider {
     }
 
     /**
+     * @param string   $stepName
+     * @param Response $response
+     */
+    private function addResponse( $stepName, $response ) {
+        $this->responses[ $stepName ] = $response;
+    }
+
+    /**
      * @param $responseBodyString
      * @param $stepName
      *
@@ -337,14 +389,6 @@ class Spider {
     }
 
     /**
-     * @param string   $stepName
-     * @param Response $response
-     */
-    private function addResponse( $stepName, $response ) {
-        $this->responses[ $stepName ] = $response;
-    }
-
-    /**
      * @param string            $responseBody
      * @param \Dprc\Spider\Step $step
      *
@@ -361,6 +405,10 @@ class Spider {
         $this->localFilesWritten[ $step->getStepName() ] = $localFilePath;
 
         return $bytesWritten;
+    }
+
+    private function numResponses() {
+        return count( $this->responses );
     }
 
     /**
@@ -435,46 +483,11 @@ class Spider {
     }
 
     /**
-     * If debugging is turned on, then file at this path will have a ton of useful debugging info.
-     */
-    private function debugSetLogPath() {
-        $this->debugLogPath = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $this->debugLogFileName;
-    }
-
-    /**
-     * @return string The path to the debug log file.
-     */
-    protected function debugGetLogPath() {
-        return $this->debugLogPath;
-    }
-
-
-    /**
-     * @throws UnableToCreateDebugRunDirectory
-     */
-    private function debugSetPathToRunDirectory() {
-        $runFolderName      = 'run_' . date( 'YmdHis' );
-        $pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
-        $this->debugFilesystem->createDir( $pathToRunDirectory );
-        $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
-        $this->pathToRunDirectory = $pathToRunDirectory;
-        $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
-    }
-
-    /**
      * A getter for this Spider's run directory.
      * @return string
      */
     public function getPathToRunDirectory() {
         return $this->pathToRunDirectory;
-    }
-
-    private function numSteps() {
-        return count( $this->steps );
-    }
-
-    private function numResponses() {
-        return count( $this->responses );
     }
 
 

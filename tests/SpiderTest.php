@@ -15,15 +15,42 @@ use org\bovigo\vfs\vfsStream;
 use Exception;
 use ReflectionClass;
 
+use League\Flysystem\Filesystem;
+use League\Flysystem\Adapter\Local;
+
 class SpiderTest extends SpiderTestCase {
 
     public function testConstructor() {
-        $mockFileSystem = vfsStream::setup( 'root', 0777 );
-        vfsStream::setQuota( -1 );
-        $spider = new Spider( $mockFileSystem->url() );
-        $this->assertInstanceOf( Spider::class, $spider );
-        $pathToRunDirectory = vfsStream::url( 'root' . $spider->getPathToRunDirectory() );
-        $this->assertTrue( is_dir( $pathToRunDirectory ) );
+        ini_set( 'memory_limit', -1 );
+        $mockFileSystem = vfsStream::setup();
+
+        $adapter         = new Local( $mockFileSystem->url(), 0 );
+        $localFilesystem = new Filesystem( $adapter );
+
+        $runFolderName      = 'run_' . date( 'YmdHis' );
+        $pathToRunDirectory = $mockFileSystem->path( 'root' . DIRECTORY_SEPARATOR . $runFolderName );
+
+        var_dump( $pathToRunDirectory );
+        $dirWasCreated = $localFilesystem->createDir( $pathToRunDirectory );
+        if ( $dirWasCreated === FALSE ):
+            throw new Exception( "Flysystem->createDir() returned false." );
+        endif;
+
+
+        //$spider = new Spider( $mockFileSystem->url(), TRUE );
+        //$this->assertInstanceOf( Spider::class, $spider );
+
+
+        //$pathToRunDirectory = vfsStream::url( $spider->getPathToRunDirectory() );
+        // This is a fix for Windows' DIRECTORY_SEPARATOR
+        //$pathToRunDirectory = vfsStream::url(vfsStream::path( $spider->getPathToRunDirectory() ));
+        //$pathToRunDirectory = $spider->getPathToRunDirectory();
+
+        //var_dump($pathToRunDirectory);
+        //$debugFileContents = $spider->getDebugLogContents();
+        //var_dump($debugFileContents);
+
+        //$this->assertTrue( is_dir( $pathToRunDirectory ) );
     }
 
     public function testConstructorWithBadPathPermissions() {
@@ -37,6 +64,13 @@ class SpiderTest extends SpiderTestCase {
         $mockFileSystem = vfsStream::setup( 'root', 0777 );
         vfsStream::setQuota( 2 );
         new Spider( $mockFileSystem->url() );
+    }
+
+    public function testLog() {
+        $spider     = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $message    = "This is a test log entry.";
+        $logWritten = $this->invokeMethod( $spider, 'log', [ $message ] );
+        $this->assertTrue( $logWritten );
     }
 
     public function testAddStepWithName() {
@@ -53,9 +87,7 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testAddStepWithNoName() {
-        $mockFileSystem = vfsStream::setup();
-        vfsStream::setQuota( -1 );
-        $spider   = new Spider( $mockFileSystem->url() );
+        $spider   = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $step     = new Step();
         $stepName = 'testStepName';
 
@@ -66,9 +98,7 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testGetStep() {
-        $mockFileSystem = vfsStream::setup();
-        vfsStream::setQuota( -1 );
-        $spider   = new Spider( $mockFileSystem->url() );
+        $spider   = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $step     = new Step();
         $stepName = 'testStep';
         $spider->addStep( $step, $stepName );
@@ -77,9 +107,7 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testRemoveAllSteps() {
-        $mockFileSystem = vfsStream::setup();
-        vfsStream::setQuota( -1 );
-        $spider   = new Spider( $mockFileSystem->url() );
+        $spider   = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $step     = new Step();
         $stepName = 'testStep';
         $spider->addStep( $step, $stepName );
@@ -101,10 +129,7 @@ class SpiderTest extends SpiderTestCase {
     //    }
 
     public function testSaveResponseBodyInDebugFolder() {
-        $mockFileSystem = vfsStream::setup( 'root', 0777 );
-        vfsStream::setQuota( -1 );
-        $mockFileSystemUrl  = $mockFileSystem->url( 'root' );
-        $spider             = new Spider( $mockFileSystemUrl, TRUE );
+        $spider             = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $responseBodyString = "This is the response body.";
         $stepName           = 'testStepName';
 
@@ -119,10 +144,7 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testSaveResponseBodyInDebugFolderWithDebugTurnedOff() {
-        $mockFileSystem = vfsStream::setup( 'root', 0777 );
-        vfsStream::setQuota( -1 );
-        $mockFileSystemUrl  = $mockFileSystem->url( 'root' );
-        $spider             = new Spider( $mockFileSystemUrl, FALSE );
+        $spider             = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $responseBodyString = "This is the response body.";
         $stepName           = 'testStepName';
 
@@ -134,10 +156,7 @@ class SpiderTest extends SpiderTestCase {
 
     public function testSaveResponseBodyInDebugFolderDirectoryNotWritable() {
         $this->expectException( DebugDirectoryNotWritable::class );
-        $mockFileSystem = vfsStream::setup( 'root', 0444 );
-        vfsStream::setQuota( -1 );
-        $mockFileSystemUrl  = $mockFileSystem->url( 'root' );
-        $spider             = new Spider( $mockFileSystemUrl, TRUE );
+        $spider             = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $responseBodyString = "This is the response body that should never get written.";
         $stepName           = 'testStepName';
 
@@ -158,8 +177,8 @@ class SpiderTest extends SpiderTestCase {
         $mockFileSystem = vfsStream::setup( 'root' );
 
         $largeFile         = vfsStream::newFile( 'tooLarge.txt' )
-            ->withContent( LargeFileContent::withKilobytes( 2 ) )
-            ->at( $mockFileSystem );
+                                      ->withContent( LargeFileContent::withKilobytes( 2 ) )
+                                      ->at( $mockFileSystem );
         $mockFileSystemUrl = $mockFileSystem->url( 'root' );
 
         $spider = new Spider( $mockFileSystemUrl, TRUE );
@@ -174,7 +193,7 @@ class SpiderTest extends SpiderTestCase {
 
 
     public function testDebugGetLogPath() {
-        $spider = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
+        $spider    = $this->getSpiderWithUnlimitedDiskSpace( TRUE );
         $pathToLog = $this->invokeMethod( $spider, 'debugGetLogPath', [] );
         $this->assertNotEmpty( $pathToLog );
     }
