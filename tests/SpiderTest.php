@@ -241,5 +241,8 @@ class SpiderTest extends SpiderTestCase {
         print_r( $spider );
     }
 
+    public function testGetDebugLogContents() {
+
+    }
 
 }
