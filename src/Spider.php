@@ -2,13 +2,9 @@
 // http://docs.guzzlephp.org/en/latest/quickstart.html
 namespace Dprc\Spider;
 
-
-use Dprc\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
 use Exception;
+use Dprc\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
 use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
-
-use Dprc\Spider\Exceptions\DebugDirectoryAlreadySet;
-use Dprc\Spider\Exceptions\DebugDirectoryNotSet;
 use Dprc\Spider\Exceptions\DebugDirectoryNotWritable;
 use Dprc\Spider\Exceptions\IndexNotFoundInResponsesArray;
 use Dprc\Spider\Exceptions\UnableToCreateDebugRunDirectory;
@@ -17,16 +13,12 @@ use Dprc\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
 use Dprc\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
 use Dprc\Spider\Exceptions\UnableToFindStepWithStepName;
 
-use Dprc\Spider\Step;
-
 /**
  * http://guzzle3.readthedocs.io/http-client/client.html
  */
 use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\Response;
-use League\Flysystem\File;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Adapter\Local;
 
@@ -40,50 +32,62 @@ class Spider {
      *
      */
     const DEBUG_LOG_FILE_NAME = 'debug.log';
+
     /**
      * @var \GuzzleHttp\Cookie\CookieJar
      */
     public $cookie_jar;
+
     /**
      * @var Client The Guzzle HTTP client.
      */
     protected $client;
+
     /**
      * @var array An array of the responses from each step. Indexed by step name.
      */
     protected $responses = [];
+
     /**
      * @var array My Step objects indexed by step name.
      */
     protected $steps = [];
+
     /**
      * @var string Want to save the body of the response to a file? This is the absolute path to that location.
      */
     protected $sink;
+
     /**
      * @var string The absolute path to the debug directory.
      */
     protected $pathToDebugDirectory;
+
     /**
      * @var int Increment after every run_step() call
      */
     protected $numberOfStepsExecuted = 0;
+
     /**
      * @var bool Do you want to enable debugging for this spider.
      */
     protected $debug = FALSE;
+
     /**
      * @var Filesystem;
      */
     protected $debugFilesystem;
+
     /**
      * @var string Absolute file path to the debug log.
      */
     protected $debugLogPath;
+
     /**
      * @var array Have you been writing files to the local filesystem? Keep track of them here.
      */
     protected $localFilesWritten = [];
+
     /**
      * @var string $pathToRunDirectory The run directory where you can find the debug log and output from each Step the Spider took.
      */
@@ -100,15 +104,15 @@ class Spider {
         $this->debugSetLogPath();
         $this->debugSetPathToRunDirectory();
 
-        $this->debug = $debug;
-        //        $this->client = new Client( [ // Base URI is used with relative requests
-        //                                      //'base_uri' => 'example.com',
-        //                                      // You can set any number of default request options.
-        //                                      //'timeout'  => 2.0,
-        //                                      //'cookies' => true
-        //                                    ] );
-        //
-        //        $this->cookie_jar = new CookieJar();
+        $this->debug  = $debug;
+        $this->client = new Client( [ // Base URI is used with relative requests
+                                      //'base_uri' => 'example.com',
+                                      // You can set any number of default request options.
+                                      //'timeout'  => 2.0,
+                                      //'cookies' => true
+                                    ] );
+
+        $this->cookie_jar = new CookieJar();
     }
 
     /**
@@ -130,34 +134,21 @@ class Spider {
         try {
             $timestamp = date( 'Y-m-d H:i:s' );
             //$debugFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME, "\n[$timestamp] " . "Log file created.");
-            $debugFileWritten = $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, "poop" );
-            if ( $debugFileWritten === FALSE ):
-                throw new Exception( "Unable to write to the debuglog file." );
+            $debugFileWritten = $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, "\n[$timestamp] " . "Log file created." );
+            if ( FALSE === $debugFileWritten ):
+                throw new DebugDirectoryNotWritable( "Unable to write to the debuglog file." );
             endif;
-            var_dump( $this->getDebugLogContents() );
 
             $readMeFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
-            if ( $readMeFileWritten === false ):
+            if ( FALSE === $readMeFileWritten ):
                 throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
             endif;
+        } catch ( DebugDirectoryNotWritable $e ) {
+            // Rethrow so it can be handled higher up.
+            throw $e;
         } catch ( Exception $e ) {
-            print_r( $e->getMessage() );
             throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage, 100, $e );
         }
-    }
-
-    public function getDebugLogContents() {
-        $path = $this->debugGetLogPath();
-
-        return $this->debugFilesystem->read( $path );
-    }
-
-    /**
-     * @return string The path to the debug log file.
-     */
-    protected function debugGetLogPath() {
-
-        return $this->debugLogPath;
     }
 
     /**
@@ -174,17 +165,15 @@ class Spider {
         $runFolderName      = 'run_' . date( 'YmdHis' );
         $pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
         $dirWasCreated      = $this->debugFilesystem->createDir( $pathToRunDirectory );
-        if ( $dirWasCreated === false ):
+        if ( $dirWasCreated === FALSE ):
             throw new UnableToCreateDebugRunDirectory( "Flysystem->createDir() returned false." );
         endif;
         $dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
-        if ( $dirWasSetToPrivate === false ):
+        if ( $dirWasSetToPrivate === FALSE ):
             throw new UnableToSetVisibilityOfDebugRunDirectory( "Flysystem->setVisibility() was not able to chmod the dir." );
         endif;
         $this->pathToRunDirectory = $pathToRunDirectory;
         $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
-
-
     }
 
     /**
@@ -204,6 +193,20 @@ class Spider {
             return TRUE;
         endif;
         throw new UnableToWriteLogFile( "Unable to write to the log file at " . $this->debugLogPath );
+    }
+
+    /**
+     * @return string The path to the debug log file.
+     */
+    protected function debugGetLogPath() {
+
+        return $this->debugLogPath;
+    }
+
+    public function getDebugLogContents() {
+        $path = $this->debugGetLogPath();
+
+        return $this->debugFilesystem->read( $path );
     }
 
     /**
@@ -292,14 +295,14 @@ class Spider {
             $response = $this->client->send( $request, $sendParameters );
             $this->addResponse( $stepName, $response );
             $this->debugSaveResponseBodyInDebugFolder( $response->getBody(), $this->numberOfStepsExecuted . '_' . $step->getStepName() );
-            $this->saveResponseToLocalFile( $response->getBody(), $step );
+            //$this->saveResponseToLocalFile( $response->getBody(), $step );
         } catch ( \GuzzleHttp\Exception\ConnectException $e ) {
             $this->log( "    A ConnectException was thrown when the client sent the request [" . $e->getMessage() . "]" );
             $this->sink = NULL;
             throw new Exception( "There was a ConnectException thrown when the client sent the request. [" . $e->getMessage() . "]", -200, $e );
         } catch ( Exception $e ) {
             $this->log( "    An Exception was thrown when the client sent the request... " . $e->getMessage() );
-            throw new Exception( "There was an Exception (of unknown type) thrown when the client sent the request.", -300, $e );
+            throw new Exception( "There was an Exception (" . get_class( $e ) . ") thrown when the client sent the request.", -300, $e );
         }
 
 
@@ -388,6 +391,10 @@ class Spider {
         return 'request_' . time() . '_' . $stepName . '.dprc';
     }
 
+    private function numResponses() {
+        return count( $this->responses );
+    }
+
     /**
      * @param string            $responseBody
      * @param \Dprc\Spider\Step $step
@@ -397,18 +404,14 @@ class Spider {
      */
     public function saveResponseToLocalFile( $responseBody = '', $step ) {
 
-        $localFilePath = $step->getLocalFilePath();
-        $bytesWritten  = file_put_contents( $localFilePath, $responseBody, FILE_APPEND );
+        //$localFilePath = $step->getLocalFilePath();
+        $bytesWritten = file_put_contents( $localFilePath, $responseBody, FILE_APPEND );
         if ( FALSE === $bytesWritten ):
             throw new UnableToWriteResponseBodyToLocalFile( "Unable to write the response body to the local file: " . $localFilePath );
         endif;
         $this->localFilesWritten[ $step->getStepName() ] = $localFilePath;
 
         return $bytesWritten;
-    }
-
-    private function numResponses() {
-        return count( $this->responses );
     }
 
     /**

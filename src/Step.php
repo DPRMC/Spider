@@ -12,6 +12,16 @@ use /** @noinspection PhpUndefinedNamespaceInspection */
 class Step {
 
     /**
+     * @var array
+     */
+    public $failureRules = [];
+
+    /**
+     * @var array Index must match failure rule index.
+     */
+    public $nextStepsOnFailure = [];
+
+    /**
      * @var string The URL that the request will be directed to.
      */
     protected $url = '';
@@ -54,16 +64,6 @@ class Step {
     protected $stepName;
 
     /**
-     * @var array
-     */
-    public $failureRules = [];
-
-    /**
-     * @var array Index must match failure rule index.
-     */
-    public $nextStepsOnFailure = [];
-
-    /**
      * @var null Want to save the output of this step to a file? Like an XLS?
      */
     protected $localFilePath = NULL;
@@ -79,6 +79,12 @@ class Step {
         return new static();
     }
 
+    /**
+     * @return string Getter method for the request type. GET or POST
+     */
+    public function getMethod() {
+        return strtoupper( $this->method );
+    }
 
     /**
      * @param string $argMethod get or post. Case-insensitive.
@@ -88,10 +94,10 @@ class Step {
     }
 
     /**
-     * @return string Getter method for the request type. GET or POST
+     * @return int
      */
-    public function getMethod() {
-        return strtoupper( $this->method );
+    public function getTimeout() {
+        return $this->timeout;
     }
 
     /**
@@ -102,25 +108,17 @@ class Step {
     }
 
     /**
-     * @return int
+     * @return string
      */
-    public function getTimeout() {
-        return $this->timeout;
+    public function getUrl() {
+        return $this->url;
     }
-
 
     /**
      * @param string $argUrl
      */
     public function setUrl( $argUrl ) {
         $this->url = $argUrl;
-    }
-
-    /**
-     * @return string
-     */
-    public function getUrl() {
-        return $this->url;
     }
 
     /**
@@ -181,14 +179,6 @@ class Step {
         endif;
     }
 
-
-    /**
-     * @param string $stepName
-     */
-    public function setStepName( $stepName ) {
-        $this->stepName = $stepName;
-    }
-
     /**
      * @return string Return the name given to this Step.
      */
@@ -196,7 +186,10 @@ class Step {
         return $this->stepName;
     }
 
-
-
-
+    /**
+     * @param string $stepName
+     */
+    public function setStepName( $stepName ) {
+        $this->stepName = $stepName;
+    }
 }

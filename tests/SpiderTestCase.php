@@ -36,4 +36,19 @@ class SpiderTestCase extends TestCase {
 
         return new Spider( $mockFileSystemUrl, TRUE );
     }
+
+    /**
+     * Create a mock filesystem with VERY limited space.
+     *
+     * @param bool $debug
+     *
+     * @return Spider
+     */
+    protected function getSpiderWithLimitedDiskSpace( $debug = FALSE ) {
+        $mockFileSystem    = vfsStream::setup( 'root' );
+        $mockFileSystemUrl = $mockFileSystem->url( 'root' );
+        vfsStream::setQuota( 1 );
+
+        return @new Spider( $mockFileSystemUrl, TRUE );
+    }
 }
