@@ -1,5 +1,6 @@
 <?php
-namespace Dprc\Spider;
+
+namespace DPRMC\Spider;
 
 use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
 use Dprc\Spider\Exceptions\UndefinedFailureRuleType;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Dprc\Spider\Exceptions;
+namespace DPRMC\Spider\Exceptions;
 
 use Exception;
 

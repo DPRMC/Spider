@@ -1,10 +1,10 @@
 <?php
 
-namespace Dprc\Spider\Tests;
+namespace DPRMC\Spider\Tests;
 
 use PHPUnit\Framework\TestCase;
 use org\bovigo\vfs\vfsStream;
-use Dprc\Spider\Spider;
+use DPRMC\Spider\Spider;
 
 class SpiderTestCase extends TestCase {
     /**

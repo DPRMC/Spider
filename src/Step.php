@@ -1,6 +1,6 @@
 <?php
 
-namespace Dprc\Spider;
+namespace DPRMC\Spider;
 
 use /** @noinspection PhpUndefinedNamespaceInspection */
     GuzzleHttp\Psr7\Request;

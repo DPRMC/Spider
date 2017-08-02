@@ -1,6 +1,6 @@
 <?php
 
-namespace Dprc\Spider;
+namespace DPRMC\Spider;
 
 
 class SuccessRule {

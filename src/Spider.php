@@ -1,17 +1,19 @@
 <?php
 // http://docs.guzzlephp.org/en/latest/quickstart.html
-namespace Dprc\Spider;
+namespace DPRMC\Spider;
 
+use DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist;
+use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
 use Exception;
-use Dprc\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
-use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
-use Dprc\Spider\Exceptions\DebugDirectoryNotWritable;
-use Dprc\Spider\Exceptions\IndexNotFoundInResponsesArray;
-use Dprc\Spider\Exceptions\UnableToCreateDebugRunDirectory;
-use Dprc\Spider\Exceptions\UnableToWriteLogFile;
-use Dprc\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
-use Dprc\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
-use Dprc\Spider\Exceptions\UnableToFindStepWithStepName;
+use DPRMC\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
+use DPRMC\Spider\Exceptions\FailureRuleTriggeredException;
+use DPRMC\Spider\Exceptions\ReadMeFileNotWritten;
+use DPRMC\Spider\Exceptions\IndexNotFoundInResponsesArray;
+use DPRMC\Spider\Exceptions\UnableToCreateDebugRunDirectory;
+use DPRMC\Spider\Exceptions\UnableToWriteLogFile;
+use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
+use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
+use DPRMC\Spider\Exceptions\UnableToFindStepWithStepName;
 
 /**
  * http://guzzle3.readthedocs.io/http-client/client.html
@@ -29,23 +31,36 @@ use League\Flysystem\Adapter\Local;
  * @package Dprc\Spider
  */
 class Spider {
+
     /**
-     *
+     * @var bool Do you want to enable debugging for this spider.
+     */
+    protected $debug = false;
+
+    /**
+     * If I have debug turned on, then this file will contain timestamped lines to let me see some useful debug info.
      */
     const DEBUG_LOG_FILE_NAME = 'debug.log';
 
     /**
-     * @var \GuzzleHttp\Cookie\CookieJar
+     * I add a readme file to the root directory for this spider. It gives me a reminder of what this Spider is for
+     * when looking around the filesystem. Additionally, it lets me attempt to write to the main directory. If there is
+     * a problem with the permissions, it's nice to find out early.
+     */
+    const README_FILE_NAME = 'README.md';
+
+    /**
+     * @var \GuzzleHttp\Cookie\CookieJar The Spider holds all of the cookies for all the Steps in one place.
      */
     public $cookie_jar;
 
     /**
-     * @var Client The Guzzle HTTP client.
+     * @var Client The Guzzle HTTP client that handles sending all of the Requests.
      */
     protected $client;
 
     /**
-     * @var array An array of the responses from each step. Indexed by step name.
+     * @var array An array of the Responses from each step. Indexed by step name.
      */
     protected $responses = [];
 
@@ -60,7 +75,7 @@ class Spider {
     protected $sink;
 
     /**
-     * @var string The absolute path to the debug directory.
+     * @var string The absolute path to the folder where I will store every "run_*" folder for this Spider.
      */
     protected $pathToDebugDirectory;
 
@@ -69,10 +84,6 @@ class Spider {
      */
     protected $numberOfStepsExecuted = 0;
 
-    /**
-     * @var bool Do you want to enable debugging for this spider.
-     */
-    protected $debug = false;
 
     /**
      * @var Filesystem;
@@ -90,29 +101,35 @@ class Spider {
     protected $localFilesWritten = [];
 
     /**
+     * @var string $runDirectoryName The name of the run folder. Follows the format "run_{yyyymmddhhmmss}"
+     */
+    protected $runDirectoryName;
+
+    /**
      * @var string $pathToRunDirectory The run directory where you can find the debug log and output from each Step the
      *      Spider took.
      */
-    private $pathToRunDirectory;
+    protected $pathToRunDirectory;
+
 
     /**
      * Spider constructor.
      *
-     * @param string $pathToStorage The absolute path to the directory where I will store all of my Spider run records.
+     * @param string $pathToStorage The absolute path to the folder where I will store all of my Spider "run_*" folders.
      * @param bool   $debug         Do you want to enable debugging for this Spider.
      */
     public function __construct( $pathToStorage, $debug = false ) {
-        $this->debugSetFilesystem( $pathToStorage );
+        $this->createFilesystem( $pathToStorage );
+        $this->createRunDirectory();
         $this->debugSetLogPath();
-        $this->debugSetPathToRunDirectory();
 
-        $this->debug = $debug;
+        $this->debug  = $debug;
         $this->client = new Client( [ // Base URI is used with relative requests
-            //'base_uri' => 'example.com',
-            // You can set any number of default request options.
-            //'timeout'  => 2.0,
-            //'cookies' => true
-        ] );
+                                      //'base_uri' => 'example.com',
+                                      // You can set any number of default request options.
+                                      //'timeout'  => 2.0,
+                                      //'cookies' => true
+                                    ] );
 
         $this->cookie_jar = new CookieJar();
     }
@@ -122,61 +139,99 @@ class Spider {
      * This method is called from the constructor.
      * It makes sure the directory exists and is writable before I start running the Spider.
      *
-     * @param string $pathToStorage The path to the directory where I store all of my run_x folders.
+     * @param string $pathToDebugDirectory The path to the directory where I store all of my run_x folders.
      *
-     * @throws DebugDirectoryNotWritable
+     * @throws ReadMeFileNotWritten
      */
-    private function debugSetFilesystem( $pathToStorage ) {
-        $this->pathToDebugDirectory = $pathToStorage;
+    private function createFilesystem( $pathToDebugDirectory ) {
+        $this->pathToDebugDirectory = $pathToDebugDirectory;
         //$adapter = new Local( $pathToStorage, LOCK_SH );
-        $adapter = new Local( $pathToStorage, 0 );
+        $adapter               = new Local( $pathToDebugDirectory, 0 );
         $this->debugFilesystem = new Filesystem( $adapter );
 
         // Now make sure that we can write to the file system.
         try {
-            $timestamp = date( 'Y-m-d H:i:s' );
-            //$debugFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME, "\n[$timestamp] " . "Log file created.");
-            $debugFileWritten = $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, "\n[$timestamp] " . "Log file created." );
-            if ( false === $debugFileWritten ):
-                throw new DebugDirectoryNotWritable( "Unable to write to the debuglog file." );
-            endif;
-
-            $readMeFileWritten = $this->debugFilesystem->write( "root" . DIRECTORY_SEPARATOR . "README.txt", "This file was auto-generated. This directory contains debug files created by a Dprc\Spider" );
-            if ( false === $readMeFileWritten ):
-                throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage );
-            endif;
-        } catch ( DebugDirectoryNotWritable $e ) {
+            $this->writeReadMeFile();
+        } catch ( ReadMeFileNotWritten $e ) {
             // Rethrow so it can be handled higher up.
             throw $e;
         } catch ( Exception $e ) {
-            throw new DebugDirectoryNotWritable( "I was unable to write to my debug directory at: " . $pathToStorage, 100, $e );
+            throw new ReadMeFileNotWritten( "I was unable to write to my debug directory at: " . $pathToDebugDirectory . ", because [" . $e->getMessage() . "]", 100, $e );
         }
     }
 
     /**
-     * If debugging is turned on, then file at this path will have a ton of useful debugging info.
+     * Attempt to write the README file to the root directory.
      */
-    private function debugSetLogPath() {
-        $this->debugLogPath = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME;
+    private function writeReadMeFile() {
+        $timestamp = date( 'Y-m-d H:i:s' );
+        if ( ! $this->debugFilesystem->has( self::README_FILE_NAME ) ):
+            $readmeFileWritten = $this->debugFilesystem->write( self::README_FILE_NAME, "[$timestamp] " . "README.md file created.\nTODO: Add a way for a Spider to specify it's own readme file contents." );
+            if ( false === $readmeFileWritten ):
+                throw new ReadMeFileNotWritten( "Unable to write to the " . self::README_FILE_NAME . " file." );
+            endif;
+        endif;
+
+        $readMeFileContents = $this->debugFilesystem->read( self::README_FILE_NAME );
+        $readMeFileContents .= "\n[$timestamp] " . "Run started. TODO: add code to write some more details about the run...";
+        $readmeFileWritten  = $this->debugFilesystem->put( self::README_FILE_NAME, $readMeFileContents );
+        if ( false === $readmeFileWritten ):
+            throw new ReadMeFileNotWritten( "Unable to write the next line to the " . self::README_FILE_NAME . " file." );
+        endif;
     }
 
     /**
+     * @return string The contents of the README file as a string.
+     * @throws \DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists
+     */
+    public function getReadMeFileContents() {
+        if ( ! $this->debugFilesystem->has( self::README_FILE_NAME ) ):
+            throw new ReadMeFileDoesNotExists();
+        endif;
+
+        return $this->debugFilesystem->read( self::README_FILE_NAME );
+    }
+
+    public function getDebugLogFileContents() {
+        if ( ! $this->debugFilesystem->has( self::DEBUG_LOG_FILE_NAME ) ):
+            throw new DebugLogFileDoesNotExist();
+        endif;
+
+        return $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
+    }
+
+
+    /**
+     *
      * @throws UnableToCreateDebugRunDirectory
      */
-    private function debugSetPathToRunDirectory() {
-        $runFolderName = 'run_' . date( 'YmdHis' );
-        $pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
-        $dirWasCreated = $this->debugFilesystem->createDir( $pathToRunDirectory );
-        if ( $dirWasCreated === false ):
+    private function createRunDirectory() {
+        $this->runDirectoryName = 'run_' . date( 'YmdHis' );
+        //$pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
+        //$dirWasCreated = $this->debugFilesystem->createDir( $pathToRunDirectory );
+        $dirWasCreated = $this->debugFilesystem->createDir( $this->runDirectoryName );
+        if ( false === $dirWasCreated ):
             throw new UnableToCreateDebugRunDirectory( "Flysystem->createDir() returned false." );
         endif;
-        $dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
-        if ( $dirWasSetToPrivate === false ):
+        //$dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
+        $dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $this->runDirectoryName, 'private' );
+        if ( false === $dirWasSetToPrivate ):
             throw new UnableToSetVisibilityOfDebugRunDirectory( "Flysystem->setVisibility() was not able to chmod the dir." );
         endif;
-        $this->pathToRunDirectory = $pathToRunDirectory;
+        //$this->pathToRunDirectory = $pathToRunDirectory;
         $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
     }
+
+    /**
+     * If debugging is turned on, then the file at this path will have a ton of useful debugging info.
+     */
+    protected function debugSetLogPath() {
+        if ( true === $this->debug ):
+
+        endif;
+        $this->debugLogPath = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME;
+    }
+
 
     /**
      * @param $message
@@ -185,11 +240,11 @@ class Spider {
      * @throws UnableToWriteLogFile
      */
     private function log( $message ) {
-        if ( !$this->debug ):
+        if ( ! $this->debug ):
             return false;
         endif;
 
-        $timestamp = date( 'Y-m-d H:i:s' );
+        $timestamp  = date( 'Y-m-d H:i:s' );
         $logWritten = file_put_contents( $this->debugGetLogPath(), "\n[$timestamp] " . $message, FILE_APPEND );
         if ( $logWritten ):
             return true;
@@ -268,7 +323,7 @@ class Spider {
     protected function runStep( $step ) {
         // Initialize the response array
         $this->log( "    Initializing the element for the response with index [" . $step->getStepName() . "]" );
-        $stepName = $step->getStepName();
+        $stepName                     = $step->getStepName();
         $this->responses[ $stepName ] = null;
 
 
@@ -423,7 +478,7 @@ class Spider {
      * @throws UnableToFindStepWithStepName
      */
     public function getStep( $stepName ) {
-        if ( !isset( $this->steps[ $stepName ] ) ):
+        if ( ! isset( $this->steps[ $stepName ] ) ):
             throw new UnableToFindStepWithStepName( "Step not found under: " . $stepName );
         endif;
 
@@ -494,14 +549,4 @@ class Spider {
     public function getLocalFilesWritten() {
         return $this->localFilesWritten;
     }
-
-    /**
-     * A getter for this Spider's run directory.
-     * @return string
-     */
-    public function getPathToRunDirectory() {
-        return $this->pathToRunDirectory;
-    }
-
-
 }
