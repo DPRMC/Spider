@@ -58,6 +58,12 @@ class SpiderTest extends SpiderTestCase {
         $spider->getDebugLogFileContents();
     }
 
+    public function testGetDebugLogContents() {
+        $spider   = $this->getSpiderWithUnlimitedDiskSpace( true );
+        $contents = $spider->getDebugLogFileContents();
+        $this->assertNotEmpty( $contents );
+    }
+
     public function testConstructorWithBadPathPermissions() {
         $this->expectException( Exception::class );
         $mockFileSystem = vfsStream::setup( 'root', 0000 );
