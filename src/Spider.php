@@ -121,8 +121,12 @@ class Spider {
     public function __construct( $pathToStorage, $debug = false ) {
         $this->debug = $debug;
         $this->createFilesystem( $pathToStorage );
-        $this->createLogFile();
-        $this->createRunDirectory();
+        if ( true === $this->debug ):
+            $this->createLogFile();
+            $this->createRunDirectory();
+        endif;
+
+
 
 
         $this->client = new Client( [ // Base URI is used with relative requests
@@ -171,6 +175,7 @@ class Spider {
             endif;
         endif;
     }
+
 
     /**
      * @return string The contents of the README file as a string.
@@ -222,10 +227,9 @@ class Spider {
      * If debugging is turned on, then the file at this path will have a ton of useful debugging info.
      */
     protected function createLogFile() {
-        if ( true === $this->debug ):
-            $contents = "[" . date( "YmdHis" ) . "] Log file created.";
-            $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, $contents );
-        endif;
+        $contents = "[" . date( "YmdHis" ) . "] Log file created.";
+
+        return $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, $contents );
     }
 
 
