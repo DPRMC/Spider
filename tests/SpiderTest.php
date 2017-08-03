@@ -3,6 +3,7 @@
 namespace DPRMC\Spider\Tests;
 
 use DPRMC\Spider\Exceptions\IndexNotFoundInResponsesArray;
+use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
 use DPRMC\Spider\Spider;
 use DPRMC\Spider\Step;
 use DPRMC\Spider\Exceptions\ReadMeFileNotWritten;
@@ -38,6 +39,14 @@ class SpiderTest extends SpiderTestCase {
         $spider             = new Spider( $mockFileSystem->url(), false );
         $readmeFileContents = $spider->getReadMeFileContents();
         $this->assertNotEmpty( $readmeFileContents );
+    }
+
+    public function testGetReadMeFileContentsThrowsExceptionWhenMissingFile() {
+        $this->expectException( ReadMeFileDoesNotExists::class );
+        $mockFileSystem = vfsStream::setup();
+        $spider         = new Spider( $mockFileSystem->url(), false );
+        unlink( $mockFileSystem->url() . '/' . Spider::README_FILE_NAME );
+        $spider->getReadMeFileContents();
     }
 
     public function testConstructorWithBadPathPermissions() {
