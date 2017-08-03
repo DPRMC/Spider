@@ -152,7 +152,7 @@ class Spider {
 
         // Now make sure that we can write to the file system.
         try {
-            $this->writeReadMeFile();
+            $this->createReadMeFile();
         } catch ( ReadMeFileNotWritten $e ) {
             // Rethrow so it can be handled higher up.
             throw $e;
@@ -161,23 +161,14 @@ class Spider {
         }
     }
 
-    /**
-     * Attempt to write the README file to the root directory.
-     */
-    private function writeReadMeFile() {
+
+    private function createReadMeFile() {
         $timestamp = date( 'Y-m-d H:i:s' );
         if ( ! $this->debugFilesystem->has( self::README_FILE_NAME ) ):
-            $readmeFileWritten = $this->debugFilesystem->write( self::README_FILE_NAME, "[$timestamp] " . "README.md file created.\nTODO: Add a way for a Spider to specify it's own readme file contents." );
+            $readmeFileWritten = $this->debugFilesystem->write( self::README_FILE_NAME, "[$timestamp] " . "README.md file created." );
             if ( false === $readmeFileWritten ):
                 throw new ReadMeFileNotWritten( "Unable to write to the " . self::README_FILE_NAME . " file." );
             endif;
-        endif;
-
-        $readMeFileContents = $this->debugFilesystem->read( self::README_FILE_NAME );
-        $readMeFileContents .= "\n[$timestamp] " . "Run started. TODO: add code to write some more details about the run...";
-        $readmeFileWritten  = $this->debugFilesystem->put( self::README_FILE_NAME, $readMeFileContents );
-        if ( false === $readmeFileWritten ):
-            throw new ReadMeFileNotWritten( "Unable to write the next line to the " . self::README_FILE_NAME . " file." );
         endif;
     }
 
