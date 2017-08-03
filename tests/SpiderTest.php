@@ -243,5 +243,18 @@ class SpiderTest extends SpiderTestCase {
         $this->assertInstanceOf( Response::class, $response );
     }
 
+    /**
+     * @link http://httpstat.us/ A service used to return HTTP status codes of your choice.
+     */
+    public function testRunShouldThrowExceptionIfRunStepThrowsException() {
+        $this->expectException( Exception::class );
+        $spider = $this->getSpiderWithUnlimitedDiskSpace();
+        $step   = new Step();
+        $step->setUrl( 'http://httpstat.us/500' );
+        $stepName = 'testStep';
+        $spider->addStep( $step, $stepName );
+        $spider->run();
+    }
+
 
 }

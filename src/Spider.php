@@ -243,7 +243,6 @@ class Spider {
     }
 
 
-
     private function createRunDirectory() {
         $this->runDirectoryName = 'run_' . date( 'YmdHis' );
         $this->debugFilesystem->createDir( $this->runDirectoryName );
@@ -256,6 +255,7 @@ class Spider {
      */
     protected function createLogFile() {
         $contents = "[" . date( "Y-m-d H:i:s" ) . "] Debug Log file created.";
+
         return $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, $contents );
     }
 
@@ -286,11 +286,9 @@ class Spider {
     }
 
 
-
     private function numSteps() {
         return count( $this->steps );
     }
-
 
 
     /**
