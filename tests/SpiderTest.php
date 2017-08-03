@@ -71,6 +71,7 @@ class SpiderTest extends SpiderTestCase {
         new Spider( $mockFileSystem->url() );
     }
 
+
     public function testLog() {
         $spider     = $this->getSpiderWithUnlimitedDiskSpace( true );
         $message    = "This is a test log entry.";

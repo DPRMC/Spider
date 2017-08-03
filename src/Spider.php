@@ -5,12 +5,10 @@ namespace DPRMC\Spider;
 use DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist;
 use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
 use Exception;
-use DPRMC\Spider\Exceptions\UnableToSetVisibilityOfDebugRunDirectory;
 use DPRMC\Spider\Exceptions\FailureRuleTriggeredException;
 use DPRMC\Spider\Exceptions\ReadMeFileNotWritten;
 use DPRMC\Spider\Exceptions\IndexNotFoundInResponsesArray;
 use DPRMC\Spider\Exceptions\UnableToCreateDebugRunDirectory;
-use DPRMC\Spider\Exceptions\UnableToWriteLogFile;
 use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
 use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
 use DPRMC\Spider\Exceptions\UnableToFindStepWithStepName;
@@ -127,8 +125,6 @@ class Spider {
         endif;
 
 
-
-
         $this->client = new Client( [ // Base URI is used with relative requests
                                       //'base_uri' => 'example.com',
                                       // You can set any number of default request options.
@@ -137,6 +133,51 @@ class Spider {
                                     ] );
 
         $this->cookie_jar = new CookieJar();
+    }
+
+    /**
+     * A Spider can't do much without steps to follow.
+     * Add Step objects to this Spider, and it will try to run each Step in order.
+     *
+     * @param \DPRMC\Spider\Step $stepObject The Step object that was created in the calling code.
+     * @param string             $stepName   Used as a key in the array of steps
+     */
+    public function addStep( $stepObject, $stepName ) {
+        // It's useful for a Step to know what it's Spider has named it.
+        $stepObject->setStepName( $stepName );
+
+        $this->steps[ $stepName ] = $stepObject;
+
+        $this->log( 'Step added. [' . $this->numSteps() . '] [' . $stepName . '] ' . $stepObject->getUrl() );
+    }
+
+
+    /**
+     * @return array An array of all of the responses from each of the steps.
+     * @throws \Exception
+     */
+    public function run() {
+        $this->log( "Inside spider->run()" );
+
+        // Run all of the steps. Catch, log, and rethrow any Exceptions thrown from the run_step() method.
+        foreach ( $this->steps as $index => $step ):
+            try {
+                $this->log( "Started step #" . $index );
+                $response = $this->runStep( $step );
+                $this->log( "[Finished step #" . $index . "] " . substr( $response->getBody(), 0, 50 ) );
+            } catch ( Exception $e ) {
+                $this->log( "Exception (" . get_class( $e ) . ") in spider->run(): " . $e->getMessage() . " " . $e->getFile() . ':' . $e->getLine() );
+                throw $e;
+            }
+        endforeach;
+
+        // Prep the Spider to have more Steps added.
+        // The alternative would be to maintain a pointer in the steps array to keep track of where we are.
+        $this->log( "Removing [" . $this->numSteps() . "] steps that were completed from this spider." );
+        $this->steps = [];
+        $this->log( "Exiting spider->run() and returning " . $this->numResponses() . " HTTP client responses." );
+
+        return $this->responses;
     }
 
     /**
@@ -202,33 +243,19 @@ class Spider {
     }
 
 
-    /**
-     *
-     * @throws UnableToCreateDebugRunDirectory
-     */
+
     private function createRunDirectory() {
         $this->runDirectoryName = 'run_' . date( 'YmdHis' );
-        //$pathToRunDirectory = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . $runFolderName;
-        //$dirWasCreated = $this->debugFilesystem->createDir( $pathToRunDirectory );
-        $dirWasCreated = $this->debugFilesystem->createDir( $this->runDirectoryName );
-        if ( false === $dirWasCreated ):
-            throw new UnableToCreateDebugRunDirectory( "Flysystem->createDir() returned false." );
-        endif;
-        //$dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $pathToRunDirectory, 'private' );
-        $dirWasSetToPrivate = $this->debugFilesystem->setVisibility( $this->runDirectoryName, 'private' );
-        if ( false === $dirWasSetToPrivate ):
-            throw new UnableToSetVisibilityOfDebugRunDirectory( "Flysystem->setVisibility() was not able to chmod the dir." );
-        endif;
-        //$this->pathToRunDirectory = $pathToRunDirectory;
-        $this->log( "Debug Run directory of the Spider was set to: " . $this->pathToRunDirectory );
+        $this->debugFilesystem->createDir( $this->runDirectoryName );
+        $this->debugFilesystem->setVisibility( $this->runDirectoryName, 'private' );
+        $this->log( "Debug Run directory of the Spider was set to: " . $this->runDirectoryName );
     }
 
     /**
      * If debugging is turned on, then the file at this path will have a ton of useful debugging info.
      */
     protected function createLogFile() {
-        $contents = "[" . date( "YmdHis" ) . "] Log file created.";
-
+        $contents = "[" . date( "Y-m-d H:i:s" ) . "] Debug Log file created.";
         return $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, $contents );
     }
 
@@ -237,25 +264,17 @@ class Spider {
      * @param $message
      *
      * @return bool
-     * @throws UnableToWriteLogFile
      */
     private function log( $message ) {
         if ( false === $this->debug ):
             return false;
         endif;
 
-        $timestamp  = date( 'Y-m-d H:i:s' );
-        //$logWritten = file_put_contents( $this->debugGetLogPath(), "\n[$timestamp] " . $message, FILE_APPEND );
-
+        $timestamp       = date( 'Y-m-d H:i:s' );
         $logFileContents = $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
         $logFileContents .= "\n[$timestamp] " . $message;
-        $logWritten      = $this->debugFilesystem->put( self::DEBUG_LOG_FILE_NAME, $logFileContents );
 
-
-        if ( $logWritten ):
-            return true;
-        endif;
-        throw new UnableToWriteLogFile( "Unable to write to the log file at " . $this->debugLogPath );
+        return $this->debugFilesystem->put( self::DEBUG_LOG_FILE_NAME, $logFileContents );
     }
 
 
@@ -266,53 +285,13 @@ class Spider {
         return $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
     }
 
-    /**
-     * A Spider can't do much without steps to follow.
-     * Add Step objects to this Spider, and it will try to run each Step in order.
-     *
-     * @param \DPRMC\Spider\Step $stepObject The Step object that was created in the calling code.
-     * @param string             $stepName   Used as a key in the array of steps
-     */
-    public function addStep( $stepObject, $stepName ) {
-        // It's useful for a Step to know what it's Spider has named it.
-        $stepObject->setStepName( $stepName );
 
-        $this->steps[ $stepName ] = $stepObject;
-
-        $this->log( 'Step added. [' . $this->numSteps() . '] [' . $stepName . '] ' . $stepObject->getUrl() );
-    }
 
     private function numSteps() {
         return count( $this->steps );
     }
 
-    /**
-     * @return array An array of all of the responses from each of the steps.
-     * @throws \Exception
-     */
-    public function run() {
-        $this->log( "Inside spider->run()" );
 
-        // Run all of the steps. Catch, log, and rethrow any Exceptions thrown from the run_step() method.
-        foreach ( $this->steps as $index => $step ):
-            try {
-                $this->log( "Started step #" . $index );
-                $response = $this->runStep( $step );
-                $this->log( "[Finished step #" . $index . "] " . substr( $response->getBody(), 0, 50 ) );
-            } catch ( Exception $e ) {
-                $this->log( "Exception (" . get_class( $e ) . ") in spider->run(): " . $e->getMessage() . " " . $e->getFile() . ':' . $e->getLine() );
-                throw $e;
-            }
-        endforeach;
-
-        // Prep the Spider to have more Steps added.
-        // The alternative would be to maintain a pointer in the steps array to keep track of where we are.
-        $this->log( "Removing [" . $this->numSteps() . "] steps that were completed from this spider." );
-        $this->steps = [];
-        $this->log( "Exiting spider->run() and returning " . $this->numResponses() . " HTTP client responses." );
-
-        return $this->responses;
-    }
 
     /**
      * @param \DPRMC\Spider\Step $step
