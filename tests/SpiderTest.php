@@ -36,8 +36,8 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testConstructorCanWriteReadMeFile() {
-        $mockFileSystem = vfsStream::setup();
-        $spider         = new Spider( $mockFileSystem->url(), false );
+        $mockFileSystem     = vfsStream::setup();
+        $spider             = new Spider( $mockFileSystem->url(), false );
         $readmeFileContents = $spider->getReadMeFileContents();
         $this->assertNotEmpty( $readmeFileContents );
     }
@@ -58,7 +58,7 @@ class SpiderTest extends SpiderTestCase {
         $spider->getDebugLogFileContents();
     }
 
-    public function testGetDebugLogContents() {
+    public function testGetDebugLogFileContents() {
         $spider   = $this->getSpiderWithUnlimitedDiskSpace( true );
         $contents = $spider->getDebugLogFileContents();
         $this->assertNotEmpty( $contents );
@@ -75,6 +75,14 @@ class SpiderTest extends SpiderTestCase {
         $mockFileSystem = vfsStream::setup( 'root', 0777 );
         vfsStream::setQuota( 2 );
         new Spider( $mockFileSystem->url() );
+    }
+
+    public function testSetSink() {
+        $mockFileSystem = vfsStream::setup();
+        $spider         = $this->getSpiderWithUnlimitedDiskSpace( true );
+        $spider->setSink( $mockFileSystem->url() );
+        $sink = $spider->getSink();
+        $this->assertEquals( $mockFileSystem->url(), $sink );
     }
 
 
@@ -254,9 +262,12 @@ class SpiderTest extends SpiderTestCase {
      */
     public function testRunShouldThrowExceptionIfRunStepThrowsException() {
         $this->expectException( Exception::class );
+        $this->expectExceptionCode( -200 );
         $spider = $this->getSpiderWithUnlimitedDiskSpace();
         $step   = new Step();
-        $step->setUrl( 'http://httpstat.us/500' );
+        //$step->setUrl( 'http://httpstat.us/522' );
+        $step->setUrl( 'www.google.com:81' );
+
         $stepName = 'testStep';
         $spider->addStep( $step, $stepName );
         $spider->run();

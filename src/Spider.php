@@ -5,10 +5,10 @@ namespace DPRMC\Spider;
 use DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist;
 use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
 use Exception;
+use GuzzleHttp\Exception\ConnectException;
 use DPRMC\Spider\Exceptions\FailureRuleTriggeredException;
 use DPRMC\Spider\Exceptions\ReadMeFileNotWritten;
 use DPRMC\Spider\Exceptions\IndexNotFoundInResponsesArray;
-use DPRMC\Spider\Exceptions\UnableToCreateDebugRunDirectory;
 use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyInDebugFolder;
 use DPRMC\Spider\Exceptions\UnableToWriteResponseBodyToLocalFile;
 use DPRMC\Spider\Exceptions\UnableToFindStepWithStepName;
@@ -243,6 +243,7 @@ class Spider {
     }
 
 
+
     private function createRunDirectory() {
         $this->runDirectoryName = 'run_' . date( 'YmdHis' );
         $this->debugFilesystem->createDir( $this->runDirectoryName );
@@ -278,12 +279,7 @@ class Spider {
     }
 
 
-    /**
-     * @return string
-     */
-    public function getDebugLogContents() {
-        return $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
-    }
+
 
 
     private function numSteps() {
@@ -330,10 +326,10 @@ class Spider {
             $this->addResponse( $stepName, $response );
             $this->debugSaveResponseBodyInDebugFolder( $response->getBody(), $this->numberOfStepsExecuted . '_' . $step->getStepName() );
             //$this->saveResponseToLocalFile( $response->getBody(), $step );
-        } catch ( \GuzzleHttp\Exception\ConnectException $e ) {
+        } catch ( ConnectException $e ) {
             $this->log( "    A ConnectException was thrown when the client sent the request [" . $e->getMessage() . "]" );
             $this->sink = null;
-            throw new Exception( "There was a ConnectException thrown when the client sent the request. [" . $e->getMessage() . "]", -200, $e );
+            throw $e;
         } catch ( Exception $e ) {
             $this->log( "    An Exception was thrown when the client sent the request... " . $e->getMessage() );
             throw new Exception( "There was an Exception (" . get_class( $e ) . ") thrown when the client sent the request.", -300, $e );
