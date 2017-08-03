@@ -2,6 +2,7 @@
 
 namespace DPRMC\Spider\Tests;
 
+use DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist;
 use DPRMC\Spider\Exceptions\IndexNotFoundInResponsesArray;
 use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
 use DPRMC\Spider\Spider;
@@ -23,7 +24,7 @@ class SpiderTest extends SpiderTestCase {
      */
     public function testConstructor() {
         $mockFileSystem = vfsStream::setup();
-        $spider = new Spider( $mockFileSystem->url(), true );
+        $spider         = new Spider( $mockFileSystem->url(), true );
         $this->assertInstanceOf( Spider::class, $spider );
     }
 
@@ -35,8 +36,8 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testConstructorCanWriteReadMeFile() {
-        $mockFileSystem     = vfsStream::setup();
-        $spider             = new Spider( $mockFileSystem->url(), false );
+        $mockFileSystem = vfsStream::setup();
+        $spider         = new Spider( $mockFileSystem->url(), false );
         $readmeFileContents = $spider->getReadMeFileContents();
         $this->assertNotEmpty( $readmeFileContents );
     }
@@ -47,6 +48,14 @@ class SpiderTest extends SpiderTestCase {
         $spider         = new Spider( $mockFileSystem->url(), false );
         unlink( $mockFileSystem->url() . '/' . Spider::README_FILE_NAME );
         $spider->getReadMeFileContents();
+    }
+
+    public function testGetDebugLogFileContentsThrowsExceptionWhenMissingFile() {
+        $this->expectException( DebugLogFileDoesNotExist::class );
+        $mockFileSystem = vfsStream::setup();
+        $spider         = new Spider( $mockFileSystem->url(), true );
+        unlink( $mockFileSystem->url() . '/' . Spider::DEBUG_LOG_FILE_NAME );
+        $spider->getDebugLogFileContents();
     }
 
     public function testConstructorWithBadPathPermissions() {
@@ -186,8 +195,6 @@ class SpiderTest extends SpiderTestCase {
         $written = $this->invokeMethod( $spider, 'debugSaveResponseBodyInDebugFolder', [ file_get_contents( $largeFile->url() ),
                                                                                          $stepName ] );
     }
-
-
 
 
     public function testSaveResponseToLocalFile() {
