@@ -119,11 +119,12 @@ class Spider {
      * @param bool   $debug         Do you want to enable debugging for this Spider.
      */
     public function __construct( $pathToStorage, $debug = false ) {
+        $this->debug = $debug;
         $this->createFilesystem( $pathToStorage );
+        $this->createLogFile();
         $this->createRunDirectory();
-        $this->debugSetLogPath();
 
-        $this->debug  = $debug;
+
         $this->client = new Client( [ // Base URI is used with relative requests
                                       //'base_uri' => 'example.com',
                                       // You can set any number of default request options.
@@ -192,9 +193,13 @@ class Spider {
         return $this->debugFilesystem->read( self::README_FILE_NAME );
     }
 
+    /**
+     * @return bool|false|string
+     * @throws \DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist
+     */
     public function getDebugLogFileContents() {
         if ( ! $this->debugFilesystem->has( self::DEBUG_LOG_FILE_NAME ) ):
-            throw new DebugLogFileDoesNotExist();
+            throw new DebugLogFileDoesNotExist( "The debug file does not exist. Did you forget to turn debugging on?" );
         endif;
 
         return $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
@@ -225,11 +230,11 @@ class Spider {
     /**
      * If debugging is turned on, then the file at this path will have a ton of useful debugging info.
      */
-    protected function debugSetLogPath() {
+    protected function createLogFile() {
         if ( true === $this->debug ):
-
+            $contents = "[" . date( "YmdHis" ) . "] Log file created.";
+            $this->debugFilesystem->write( self::DEBUG_LOG_FILE_NAME, $contents );
         endif;
-        $this->debugLogPath = $this->pathToDebugDirectory . DIRECTORY_SEPARATOR . self::DEBUG_LOG_FILE_NAME;
     }
 
 
@@ -240,38 +245,38 @@ class Spider {
      * @throws UnableToWriteLogFile
      */
     private function log( $message ) {
-        if ( ! $this->debug ):
+        if ( false === $this->debug ):
             return false;
         endif;
 
         $timestamp  = date( 'Y-m-d H:i:s' );
-        $logWritten = file_put_contents( $this->debugGetLogPath(), "\n[$timestamp] " . $message, FILE_APPEND );
+        //$logWritten = file_put_contents( $this->debugGetLogPath(), "\n[$timestamp] " . $message, FILE_APPEND );
+
+        $logFileContents = $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
+        $logFileContents .= "\n[$timestamp] " . $message;
+        $logWritten      = $this->debugFilesystem->put( self::DEBUG_LOG_FILE_NAME, $logFileContents );
+
+
         if ( $logWritten ):
             return true;
         endif;
         throw new UnableToWriteLogFile( "Unable to write to the log file at " . $this->debugLogPath );
     }
 
+
     /**
-     * @return string The path to the debug log file.
+     * @return string
      */
-    protected function debugGetLogPath() {
-
-        return $this->debugLogPath;
-    }
-
     public function getDebugLogContents() {
-        $path = $this->debugGetLogPath();
-
-        return $this->debugFilesystem->read( $path );
+        return $this->debugFilesystem->read( self::DEBUG_LOG_FILE_NAME );
     }
 
     /**
      * A Spider can't do much without steps to follow.
      * Add Step objects to this Spider, and it will try to run each Step in order.
      *
-     * @param \Dprc\Spider\Step $stepObject The Step object that was created in the calling code.
-     * @param string            $stepName   Used as a key in the array of steps
+     * @param \DPRMC\Spider\Step $stepObject The Step object that was created in the calling code.
+     * @param string             $stepName   Used as a key in the array of steps
      */
     public function addStep( $stepObject, $stepName ) {
         // It's useful for a Step to know what it's Spider has named it.
@@ -315,7 +320,7 @@ class Spider {
     }
 
     /**
-     * @param \Dprc\Spider\Step $step
+     * @param \DPRMC\Spider\Step $step
      *
      * @return \GuzzleHttp\Psr7\Response
      * @throws \Exception

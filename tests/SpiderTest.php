@@ -179,11 +179,6 @@ class SpiderTest extends SpiderTestCase {
     }
 
 
-    public function testDebugGetLogPath() {
-        $spider    = $this->getSpiderWithUnlimitedDiskSpace( true );
-        $pathToLog = $this->invokeMethod( $spider, 'debugGetLogPath', [] );
-        $this->assertNotEmpty( $pathToLog );
-    }
 
 
     public function testSaveResponseToLocalFile() {
