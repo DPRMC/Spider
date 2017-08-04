@@ -243,7 +243,6 @@ class Spider {
     }
 
 
-
     private function createRunDirectory() {
         $this->runDirectoryName = 'run_' . date( 'YmdHis' );
         $this->debugFilesystem->createDir( $this->runDirectoryName );
@@ -279,9 +278,6 @@ class Spider {
     }
 
 
-
-
-
     private function numSteps() {
         return count( $this->steps );
     }
@@ -309,7 +305,9 @@ class Spider {
                             'allow_redirects' => true,
                             'cookies'         => $this->cookie_jar,
                             'debug'           => false,
-                            'timeout'         => $step->getTimeout() ];
+                            'timeout'         => $step->getTimeout(),
+                            'sink'            => null,
+        ];
 
         $this->log( "    Set the array for sendParameters" );
 
@@ -318,7 +316,7 @@ class Spider {
             $sendParameters[ 'sink' ] = $this->getSink();
         endif;
 
-        $this->log( "    Set the sink" );
+        $this->log( "    Set the sink to " . $sendParameters[ 'sink' ] );
 
         try {
             $this->log( "    Executing this->client->send()" );

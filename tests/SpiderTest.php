@@ -19,6 +19,7 @@ use GuzzleHttp\Exception\ConnectException;
 
 class SpiderTest extends SpiderTestCase {
 
+
     /**
      * @throws \Exception
      * @group mike
@@ -79,11 +80,52 @@ class SpiderTest extends SpiderTestCase {
     }
 
     public function testSetSink() {
-        $mockFileSystem = vfsStream::setup();
+
+        // setup
+        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
+        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
+        mkdir( $sinkRoot, 0777 );
+
         $spider         = $this->getSpiderWithUnlimitedDiskSpace( true );
-        $spider->setSink( $mockFileSystem->url() );
-        $sink = $spider->getSink();
-        $this->assertEquals( $mockFileSystem->url(), $sink );
+        $spider->setSink( $sink );
+        $sinkFromSpider = $spider->getSink();
+        $this->assertEquals( $sink, $sinkFromSpider );
+
+        $step = new Step();
+        $step->setUrl( 'http://google.com' );
+        $stepName = 'testStep';
+        $spider->addStep( $step, $stepName );
+        $spider->run();
+
+        // teardown
+        unset( $spider );
+        unlink( $sink );
+        rmdir( $sinkRoot );
+    }
+
+    /**
+     */
+    public function testAddSinkAsParameter() {
+
+        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
+        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
+        mkdir( $sinkRoot, 0777 );
+
+        $mockFileSystem    = vfsStream::setup( 'root' );
+        $mockFileSystemUrl = $mockFileSystem->url( 'root' );
+        vfsStream::setQuota( -1 );
+        $spider = new Spider( $mockFileSystemUrl, true );
+        $spider->setSink( $sink );
+
+        $step = new Step();
+        $step->setUrl( 'http://google.com' );
+        $stepName = 'testStep';
+        $spider->addStep( $step, $stepName );
+        $spider->run();
+        $this->assertTrue( true );
+        unset( $spider );
+        unlink( $sink );
+        rmdir( $sinkRoot );
     }
 
 
