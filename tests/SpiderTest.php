@@ -14,6 +14,7 @@ use GuzzleHttp\Psr7\Response;
 use org\bovigo\vfs\content\LargeFileContent;
 use org\bovigo\vfs\vfsStream;
 use Exception;
+use GuzzleHttp\Exception\ConnectException;
 
 
 class SpiderTest extends SpiderTestCase {
@@ -261,12 +262,12 @@ class SpiderTest extends SpiderTestCase {
      * @link http://httpstat.us/ A service used to return HTTP status codes of your choice.
      */
     public function testRunShouldThrowExceptionIfRunStepThrowsException() {
-        $this->expectException( Exception::class );
-        $this->expectExceptionCode( -200 );
+        $this->expectException( ConnectException::class );
         $spider = $this->getSpiderWithUnlimitedDiskSpace();
         $step   = new Step();
         //$step->setUrl( 'http://httpstat.us/522' );
         $step->setUrl( 'www.google.com:81' );
+        $step->setTimeout( 1 );
 
         $stepName = 'testStep';
         $spider->addStep( $step, $stepName );
