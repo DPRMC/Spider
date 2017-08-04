@@ -17,122 +17,49 @@ use Exception;
 use GuzzleHttp\Exception\ConnectException;
 
 
-class SpiderTest extends SpiderTestCase {
+class SpiderMethodsTest extends SpiderTestCase {
 
+    protected $sinkRoot;
+    protected $sinkFilePath;
+    protected $sink;
 
     /**
-     * @throws \Exception
-     * @group mike
+     * @var Spider $spider
      */
-    public function testConstructor() {
-        $mockFileSystem = vfsStream::setup();
-        $spider         = new Spider( $mockFileSystem->url(), true );
-        $this->assertInstanceOf( Spider::class, $spider );
-    }
+    protected $spider;
 
-    public function testConstructorCanWriteLogFile() {
-        $mockFileSystem  = vfsStream::setup();
-        $spider          = new Spider( $mockFileSystem->url(), true );
-        $logFileContents = $spider->getDebugLogFileContents();
-        $this->assertNotEmpty( $logFileContents );
-    }
-
-    public function testConstructorCanWriteReadMeFile() {
-        $mockFileSystem     = vfsStream::setup();
-        $spider             = new Spider( $mockFileSystem->url(), false );
-        $readmeFileContents = $spider->getReadMeFileContents();
-        $this->assertNotEmpty( $readmeFileContents );
-    }
-
-    public function testGetReadMeFileContentsThrowsExceptionWhenMissingFile() {
-        $this->expectException( ReadMeFileDoesNotExists::class );
-        $mockFileSystem = vfsStream::setup();
-        $spider         = new Spider( $mockFileSystem->url(), false );
-        unlink( $mockFileSystem->url() . '/' . Spider::README_FILE_NAME );
-        $spider->getReadMeFileContents();
-    }
-
-    public function testGetDebugLogFileContentsThrowsExceptionWhenMissingFile() {
-        $this->expectException( DebugLogFileDoesNotExist::class );
-        $mockFileSystem = vfsStream::setup();
-        $spider         = new Spider( $mockFileSystem->url(), true );
-        unlink( $mockFileSystem->url() . '/' . Spider::DEBUG_LOG_FILE_NAME );
-        $spider->getDebugLogFileContents();
-    }
-
-    public function testGetDebugLogFileContents() {
-        $spider   = $this->getSpiderWithUnlimitedDiskSpace( true );
-        $contents = $spider->getDebugLogFileContents();
-        $this->assertNotEmpty( $contents );
-    }
-
-    public function testConstructorWithBadPathPermissions() {
-        $this->expectException( Exception::class );
-        $mockFileSystem = vfsStream::setup( 'root', 0000 );
-        new Spider( $mockFileSystem->url() );
-    }
-
-    public function testConstructorWithNoDiskSpace() {
-        $this->expectException( ReadMeFileNotWritten::class );
-        $mockFileSystem = vfsStream::setup( 'root', 0777 );
-        vfsStream::setQuota( 2 );
-        new Spider( $mockFileSystem->url() );
-    }
-
+    /**
+     * @group methods
+     */
     public function testSetSink() {
+        $this->spider->setSink( $this->sink );
+        $sinkFromSpider = $this->spider->getSink();
+        $this->assertEquals( $this->sink, $sinkFromSpider );
+    }
 
-        // setup
-        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
-        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
-        mkdir( $sinkRoot, 0777 );
-
-        $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
-        $spider->setSink( $sink );
-        $sinkFromSpider = $spider->getSink();
-        $this->assertEquals( $sink, $sinkFromSpider );
-
+    /**
+     * @group methods
+     */
+    public function testGetSink() {
         $step = new Step();
         $step->setUrl( 'http://google.com' );
         $stepName = 'testStep';
-        $spider->addStep( $step, $stepName );
-        $spider->run();
-
-        // teardown
-        unset( $spider );
-        unlink( $sink );
-        rmdir( $sinkRoot );
+        $this->spider->addStep( $step, $stepName );
+        $this->spider->run();
     }
 
     /**
+     * @group methods
      */
     public function testAddSinkAsParameter() {
-
-        // SET UP
-        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
-        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
-        if ( ! file_exists( $sinkRoot ) ):
-            mkdir( $sinkRoot, 0777 );
-        endif;
-
-        $mockFileSystem    = vfsStream::setup( 'root' );
-        $mockFileSystemUrl = $mockFileSystem->url( 'root' );
-        vfsStream::setQuota( -1 );
-        $spider = new Spider( $mockFileSystemUrl, true );
-        $spider->setSink( $sink );
-
+        $this->spider->setSink( $this->sink );
         $step = new Step();
         $step->setUrl( 'http://google.com' );
         $stepName = 'testStep';
-        $spider->addStep( $step, $stepName );
-        $spider->run();
+        $this->spider->addStep( $step, $stepName );
+        $this->spider->run();
         $this->assertTrue( true );
-
-        // TEAR DOWN
-        unset( $spider );
-        unlink( $sink );
-        rmdir( $sinkRoot );
     }
-
 
     public function testLog() {
         $spider     = $this->getSpiderWithUnlimitedDiskSpace( true );
@@ -185,17 +112,6 @@ class SpiderTest extends SpiderTestCase {
         $this->assertEquals( 0, $numSteps );
     }
 
-
-    //    public function testGetRequestDebugFileName() {
-    //        $mockFileSystem = vfsStream::setup();
-    //        $spider         = new Spider( $mockFileSystem->url() );
-    //        $stepName       = 'test';
-    //        $time           = time();
-    //        $expected       = 'request_' . $time . '_' . $stepName . '.dprc';
-    //        $debugFileName  = $spider->debugGetRequestDebugFileName( $stepName );
-    //        $this->assertEquals( $expected, $debugFileName );
-    //    }
-
     public function testSaveResponseBodyInDebugFolder() {
         $spider             = $this->getSpiderWithUnlimitedDiskSpace( true );
         $responseBodyString = "This is the response body.";
@@ -221,6 +137,16 @@ class SpiderTest extends SpiderTestCase {
         $this->assertTrue( $written );
     }
 
+
+    //    public function testGetRequestDebugFileName() {
+    //        $mockFileSystem = vfsStream::setup();
+    //        $spider         = new Spider( $mockFileSystem->url() );
+    //        $stepName       = 'test';
+    //        $time           = time();
+    //        $expected       = 'request_' . $time . '_' . $stepName . '.dprc';
+    //        $debugFileName  = $spider->debugGetRequestDebugFileName( $stepName );
+    //        $this->assertEquals( $expected, $debugFileName );
+    //    }
 
     public function testSaveResponseBodyInDebugFolderDirectoryNotWritable() {
         $this->expectException( ReadMeFileNotWritten::class );
@@ -259,13 +185,11 @@ class SpiderTest extends SpiderTestCase {
                                                                                          $stepName ] );
     }
 
-
     public function testSaveResponseToLocalFile() {
         $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
 
         $this->assertTrue( true );
     }
-
 
     public function testNumResponses() {
         $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
@@ -286,13 +210,11 @@ class SpiderTest extends SpiderTestCase {
         $this->assertInstanceOf( Client::class, $client );
     }
 
-
     public function testGetResponseFromInvalidStepName() {
         $this->expectException( IndexNotFoundInResponsesArray::class );
         $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
         $spider->getResponse( 'invalidStepName' );
     }
-
 
     public function testGetResponseFromValidStepName() {
         $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
@@ -305,46 +227,32 @@ class SpiderTest extends SpiderTestCase {
         $this->assertInstanceOf( Response::class, $response );
     }
 
-    /**
-     * @link http://httpstat.us/ A service used to return HTTP status codes of your choice.
-     */
-    public function testRun_ShouldThrowConnectException() {
-        $this->expectException( ConnectException::class );
-        $spider = $this->getSpiderWithUnlimitedDiskSpace();
-        $step   = new Step();
-        //$step->setUrl( 'http://httpstat.us/522' );
-        $step->setUrl( 'www.google.com:81' );
-        $step->setTimeout( 1 );
-
-        $stepName = 'testStep';
-        $spider->addStep( $step, $stepName );
-        $spider->run();
-    }
-
-
-    public function testRun_ShouldThrowException() {
-        // SET UP
-        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
-        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
-        if ( ! file_exists( $sinkRoot ) ):
-            mkdir( $sinkRoot, 0777 );
+    protected function setUp() {
+        $this->sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
+        if ( ! file_exists( $this->sinkRoot ) ):
+            mkdir( $this->sinkRoot, 0777 );
         endif;
 
-        $this->expectException( Exception::class );
-        $spider = $this->getSpiderWithSetDiskSpace();
-        $step   = new Step();
-        //$step->setUrl( 'http://httpstat.us/522' );
-        $step->setUrl( 'www.google.com:81' );
-        $step->setTimeout( 1 );
+        $this->sinkFilePath = $this->sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
+        if ( file_exists( $this->sinkFilePath ) ):
+            unlink( $this->sinkFilePath );
+        endif;
 
-        $stepName = 'testStep';
-        $spider->addStep( $step, $stepName );
+        $this->sink = fopen( $this->sinkFilePath, 'w+' );
 
-        // FORCE EXCEPTION
-        unlink( $sink );
-        rmdir( $sinkRoot );
+        $this->spider = $this->getSpiderWithUnlimitedDiskSpace( true );
+    }
 
-        $spider->run();
+    protected function tearDown() {
+        fclose( $this->sink );
+
+        if ( file_exists( $this->sinkFilePath ) ):
+            unlink( $this->sinkFilePath );
+        endif;
+
+        if ( file_exists( $this->sinkRoot ) ):
+            rmdir( $this->sinkRoot );
+        endif;
     }
 
 
