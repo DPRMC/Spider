@@ -28,13 +28,33 @@ class SpiderMethodsTest extends SpiderTestCase {
      */
     protected $spider;
 
-    /**
-     * @group methods
-     */
+
     public function testSetSink() {
-        $this->spider->setSink( $this->sink );
-        $sinkFromSpider = $this->spider->getSink();
-        $this->assertEquals( $this->sink, $sinkFromSpider );
+
+        // setup
+        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
+        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
+        if ( ! file_exists( $sinkRoot ) ):
+            mkdir( $sinkRoot, 0777 );
+        endif;
+
+        $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
+        $spider->setSink( $sink );
+        $sinkFromSpider = $spider->getSink();
+        $this->assertEquals( $sink, $sinkFromSpider );
+
+        $step = new Step();
+        $step->setUrl( 'http://google.com' );
+        $stepName = 'testStep';
+        $spider->addStep( $step, $stepName );
+        $spider->run();
+
+        // teardown
+        unset( $spider );
+        unset( $step );
+        unlink( $sink );
+
+        rmdir( $sinkRoot );
     }
 
     /**
@@ -46,19 +66,6 @@ class SpiderMethodsTest extends SpiderTestCase {
         $stepName = 'testStep';
         $this->spider->addStep( $step, $stepName );
         $this->spider->run();
-    }
-
-    /**
-     * @group methods
-     */
-    public function testAddSinkAsParameter() {
-        $this->spider->setSink( $this->sink );
-        $step = new Step();
-        $step->setUrl( 'http://google.com' );
-        $stepName = 'testStep';
-        $this->spider->addStep( $step, $stepName );
-        $this->spider->run();
-        $this->assertTrue( true );
     }
 
     public function testLog() {

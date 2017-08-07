@@ -2,9 +2,9 @@
 // http://docs.guzzlephp.org/en/latest/quickstart.html
 namespace DPRMC\Spider;
 
+use Exception;
 use DPRMC\Spider\Exceptions\DebugLogFileDoesNotExist;
 use DPRMC\Spider\Exceptions\ReadMeFileDoesNotExists;
-use Exception;
 use GuzzleHttp\Exception\ConnectException;
 use DPRMC\Spider\Exceptions\FailureRuleTriggeredException;
 use DPRMC\Spider\Exceptions\ReadMeFileNotWritten;
@@ -30,15 +30,6 @@ use League\Flysystem\Adapter\Local;
  */
 class Spider {
 
-    /**
-     * @var bool Do you want to enable debugging for this spider.
-     */
-    protected $debug = false;
-
-    /**
-     * If I have debug turned on, then this file will contain timestamped lines to let me see some useful debug info.
-     */
-    const DEBUG_LOG_FILE_NAME = 'debug.log';
 
     /**
      * I add a readme file to the root directory for this spider. It gives me a reminder of what this Spider is for
@@ -72,42 +63,11 @@ class Spider {
      */
     protected $sink;
 
-    /**
-     * @var string The absolute path to the folder where I will store every "run_*" folder for this Spider.
-     */
-    protected $pathToDebugDirectory;
 
     /**
      * @var int Increment after every run_step() call
      */
     protected $numberOfStepsExecuted = 0;
-
-
-    /**
-     * @var Filesystem;
-     */
-    protected $debugFilesystem;
-
-    /**
-     * @var string Absolute file path to the debug log.
-     */
-    protected $debugLogPath;
-
-    /**
-     * @var array Have you been writing files to the local filesystem? Keep track of them here.
-     */
-    protected $localFilesWritten = [];
-
-    /**
-     * @var string $runDirectoryName The name of the run folder. Follows the format "run_{yyyymmddhhmmss}"
-     */
-    protected $runDirectoryName;
-
-    /**
-     * @var string $pathToRunDirectory The run directory where you can find the debug log and output from each Step the
-     *      Spider took.
-     */
-    protected $pathToRunDirectory;
 
 
     /**
@@ -118,11 +78,6 @@ class Spider {
      */
     public function __construct( $pathToStorage, $debug = false ) {
         $this->debug = $debug;
-        $this->createFilesystem( $pathToStorage );
-        if ( true === $this->debug ):
-            $this->createLogFile();
-            $this->createRunDirectory();
-        endif;
 
 
         $this->client = new Client( [ // Base URI is used with relative requests
@@ -320,7 +275,7 @@ class Spider {
 
         try {
             $this->log( "    Executing this->client->send()" );
-            $response = $this->client->send( $request, $sendParameters );
+            $response = $this->sendRequest( $request, $sendParameters );
             $this->addResponse( $stepName, $response );
             $this->debugSaveResponseBodyInDebugFolder( $response->getBody(), $this->numberOfStepsExecuted . '_' . $step->getStepName() );
             //$this->saveResponseToLocalFile( $response->getBody(), $step );
@@ -353,6 +308,16 @@ class Spider {
         $this->setSink( null );
 
         return $response;
+    }
+
+    /**
+     * @param       $request
+     * @param array $sendParameters
+     *
+     * @return mixed|\Psr\Http\Message\ResponseInterface
+     */
+    protected function sendRequest( $request, $sendParameters = [] ) {
+        return $this->client->send( $request, $sendParameters );
     }
 
     /**

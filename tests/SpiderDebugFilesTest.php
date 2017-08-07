@@ -39,29 +39,6 @@ class SpiderDebugFilesTest extends SpiderTestCase {
     }
 
 
-    public function testSetSink() {
-
-        // setup
-        $sinkRoot = __DIR__ . DIRECTORY_SEPARATOR . 'files';
-        $sink     = $sinkRoot . DIRECTORY_SEPARATOR . 'test.txt';
-        mkdir( $sinkRoot, 0777 );
-
-        $spider = $this->getSpiderWithUnlimitedDiskSpace( true );
-        $spider->setSink( $sink );
-        $sinkFromSpider = $spider->getSink();
-        $this->assertEquals( $sink, $sinkFromSpider );
-
-        $step = new Step();
-        $step->setUrl( 'http://google.com' );
-        $stepName = 'testStep';
-        $spider->addStep( $step, $stepName );
-        $spider->run();
-
-        // teardown
-        unset( $spider );
-        unlink( $sink );
-        rmdir( $sinkRoot );
-    }
 
     /**
      */
