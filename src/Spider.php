@@ -38,6 +38,8 @@ class Spider {
      */
     const README_FILE_NAME = 'README.md';
 
+    const DEBUG_LOG_FILE_NAME = 'debug.log';
+
     /**
      * @var \GuzzleHttp\Cookie\CookieJar The Spider holds all of the cookies for all the Steps in one place.
      */

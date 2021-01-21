@@ -1,6 +1,8 @@
-<?php namespace Dprc\Spider;
+<?php
+namespace DPRMC\Spider;
 
 use Illuminate\Support\ServiceProvider;
+
 
 class SpiderServiceProvider extends ServiceProvider {
 
@@ -18,7 +20,7 @@ class SpiderServiceProvider extends ServiceProvider {
      */
     public function boot()
     {
-        $this->package('dprc/spider');
+        $this->package('dprmc/spider');
     }
 
     /**
@@ -30,7 +32,7 @@ class SpiderServiceProvider extends ServiceProvider {
 
         $this->app->booting(function(){
             $loader = \Illuminate\Foundation\AliasLoader::getInstance();
-            $loader->alias('Spider','Dprc\Spider\Facades\Spider');
+            $loader->alias('Spider','DPRMC\Spider\Facades\Spider');
         });
 
 

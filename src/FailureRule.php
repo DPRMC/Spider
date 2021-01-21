@@ -2,8 +2,8 @@
 
 namespace DPRMC\Spider;
 
-use Dprc\Spider\Exceptions\FailureRuleTriggeredException;
-use Dprc\Spider\Exceptions\UndefinedFailureRuleType;
+use DPRMC\Spider\Exceptions\FailureRuleTriggeredException;
+use DPRMC\Spider\Exceptions\UndefinedFailureRuleType;
 use GuzzleHttp\Psr7\Response;
 use Exception;
 
